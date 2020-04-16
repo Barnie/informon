@@ -1,0 +1,7 @@
+git add a
+git add gitaddall
+
+git add ./*.js
+git add ./*.json
+
+git status
