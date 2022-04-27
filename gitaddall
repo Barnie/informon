@@ -3,5 +3,10 @@ git add gitaddall
 
 git add ./*.js
 git add ./*.json
+git add ./*.sh
+
+git add ./package.json
+git add LICENSE
+git add README.md
 
 git status
