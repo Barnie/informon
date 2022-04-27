@@ -11,7 +11,7 @@
   "dependencies": {
     "ibm_db": "^2.6.4",
     "lodash": "^4.17.15",
-    "printf": "^0.5.3",
+    "printf": "^0.6.1",
     "redis": "^3.0.2"
   },
   "devDependencies": {
