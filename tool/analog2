@@ -1,0 +1,16 @@
+#!/bin/ksh
+
+####################################################################         
+#
+#	analog2 : Logical Log Backup 상황을 보는 Shell입니다
+#
+#	사용법 : analog2 (검사할 online.log의 line수)
+#
+####################################################################
+
+if [ ! "$1" ]
+then export lines=200
+else export lines=$1
+fi
+
+tail -${lines} `onstat -c | grep MSGPATH | nawk -F ' ' '{ { print $2 } }'` | grep 'Backup Completed'
