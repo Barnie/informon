@@ -1,7 +1,18 @@
 # informon
 informix monitoring tool
 
-## READ AHEAD Top Table List
+## ./js
+JavaScripts
+
+## ./sh
+Korn Shell Scripts
+
+## ./tool
+Old Korn Shell Scripts
+
+
+
+## Usage Example : READ AHEAD Top Table List
 
 ```
 $ node toprah
@@ -52,3 +63,4 @@ partnumHex    partnumInt          diskReads        bufferReads             DBNam
 
 $
 ```
+
