@@ -1,0 +1,31 @@
+export LANG=ko
+export TERM=vt100
+export INFORMIXDIR=/informix
+export TERMCAP=$INFORMIXDIR/etc/termcap
+export DB_LOCALE=ko_kr.ksc
+export SERVER_LOCALE=ko_kr.ksc
+export CLIENT_LOCALE=ko_kr.ksc
+export PATH=$INFORMIXDIR/bin:.:$PATH:/usr/local/bin:$INFORMIXDIR/tool:$PATH
+export LIBPATH=$INFORMIXDIR/lib:/usr/lib:$INFORMIXDIR/lib/esql:$INFORMIXDIR/lib/tools:$LIBPATH
+export LD_LIBRARY_PATH=$INFORMIXDIR/lib:$INFORMIXDIR/lib/esql:$INFORMIXDIR/lib/tools:$LD_LIBRARY_PATH
+
+if [ $1 <> '' ]; then
+        if [ $1 = 'long_tcp' ]; then
+                export INFORMIXSERVER=long_tcp
+                export ONCONFIG=onconfig.long
+                export INFORMIXSQLHOSTS=$INFORMIXDIR/etc/sqlhosts.long
+        elif [ $1 = 'temp_tcp' ]; then
+                export INFORMIXSERVER=temp_tcp
+                export ONCONFIG=onconfig.temp
+                export INFORMIXSQLHOSTS=$INFORMIXDIR/etc/sqlhosts.temp
+        else
+                echo 'Error'
+                exit
+        fi
+else
+        echo 'Error'
+        exit
+fi
+
+onstat -
+

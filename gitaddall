@@ -1,9 +1,9 @@
 git add a
 git add gitaddall
 
-git add ./*.js
-git add ./*.json
-git add ./*.sh
+git add ./js
+git add ./sh
+git add ./tool
 
 git add ./package.json
 git add LICENSE
