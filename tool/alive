@@ -1,3 +1,4 @@
+#!/bin/ksh
 # Reviewed : 20220429
 
 export LANG=ko

@@ -1,0 +1,99 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   backuplog : Logical Log의 백업 상태를 확인하여 백업하는 Shell 입니다.
+#                                 표준버전 : v0.2
+#
+#   사용법 : backuplog (Cron 용)
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+export TOOL=/informix/tool
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+export INFORMIXDIR=/informix
+export DB_LOCALE=ko_kr.ksc
+export SERVER_LOCALE=ko_kr.ksc
+export CLIENT_LOCALE=ko_kr.ksc
+export PATH=$INFORMIXDIR/bin:.:$PATH:/usr/local/bin
+export LIBPATH=$INFORMIXDIR/lib:/usr/lib:$INFORMIXDIR/lib/esql:$INFORMIXDIR/lib/tools:$LIBPATH
+export LD_LIBRARY_PATH=$INFORMIXDIR/lib:$INFORMIXDIR/lib/esql:$INFORMIXDIR/lib/tools:$LD_LIBRARY_PATH
+
+if [ `hostname` = 'test_mst01' ]
+	then export LOGFILE=/Infolog1/informix/cron/backuplog.`date +"%Y%m%d"`
+        export INFORMIXSERVER=mst01_tcp
+        export ONCONFIG=onconfig.m01
+        export INFORMIXSQLHOSTS=$INFORMIXDIR/etc/sqlhosts.m01
+elif [ `hostname` = 'test_mst02' ]
+	then export LOGFILE=/Infolog2/informix/cron/backuplog.`date +"%Y%m%d"`
+        export INFORMIXSERVER=mst02_tcp
+        export ONCONFIG=onconfig.m02
+        export INFORMIXSQLHOSTS=$INFORMIXDIR/etc/sqlhosts.m02
+elif [ `hostname` = 'test_mst03' ]
+	then export LOGFILE=/Infolog3/informix/cron/backuplog.`date +"%Y%m%d"`
+        export INFORMIXSERVER=mst03_tcp
+        export ONCONFIG=onconfig.m03
+        export INFORMIXSQLHOSTS=$INFORMIXDIR/etc/sqlhosts.m03
+else
+	echo '환경 설정을 확인하세요'
+	exit
+fi
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select sum(1), sum(is_backed_up)
+  from syslogs;
+!
+
+export alogs=`cat $TempFile1 | $CAWK -F ' ' '{ print $1; }'`
+export blogs=`cat $TempFile1 | $CAWK -F ' ' '{ print $2; }'`
+export logper=`cat $TempFile1 | $CAWK -F ' ' '{ printf("%5.2f", $2/$1*100); }'`
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+if [ $logper -le 96 ]
+then
+	echo '--------------------------------------------------------' >> $LOGFILE
+	echo '총 Log 갯수 / Backup된 Log 갯수 : \c' >> $LOGFILE
+	echo $alogs' / '$blogs' ('$logper'%)' >> $LOGFILE
+	ps -ef | grep onbar | grep -v 'grep' > $TempFile1
+	export onbars=`wc -l $TempFile1 | $CAWK -F ' ' '{ print $1; }'`
+	echo `date +"%H%M"`" : Number of onbar processes = "$onbars >> $LOGFILE
+	if [ $onbars -eq 0 ]
+	then
+		ps -ef | grep nsr | grep -v 'grep' > $TempFile1
+		export isms=`wc -l $TempFile1 | $CAWK -F ' ' '{ print $1; }'`
+		echo `date +"%H%M"`" : Number of ISM processes = "$isms >> $LOGFILE
+		if [ $isms -eq 8 ]
+		then
+			echo 'Activate Onbar Log Backup' >> $LOGFILE
+			onbar -b -l
+		fi
+	fi
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
