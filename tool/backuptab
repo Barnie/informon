@@ -1,0 +1,869 @@
+#!/bin/ksh
+####################################################################         
+# 
+#   backuptab : BCV에서 Table을 ASCii Backup하는 Shell입니다
+#
+#   작성자 : 바니                 작성일자 : 2003년 06월 23일
+#                                 최종수정 : 2009년 06월 10일
+#                                 표준버전 : v0.2
+#
+#   사용법 : backuptab (현재일자 이전 몇일)
+#   요파일 : [m01/m02]:/informix/SCHEMA/tables_[d/m]_bak_[1/p]_[보관기간]
+#   결과물 : tables_x.yyyymmdd (optional)
+#   주  의 : Text Column이 포함된 Table은 Backup이 안될 수도 있음
+#
+####################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}
+export TempFile3=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp3_${TempTail}
+export TempFile4=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp4_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+if [ -f $TempFile3 ]; then rm $TempFile3; fi
+if [ -f $TempFile4 ]; then rm $TempFile4; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then export minus=0
+else export minus=$1
+fi
+
+while true
+do ##### Main While Loop
+
+cd /backlog/informix
+
+###########################################
+#   정보계
+###########################################
+
+if [ $INFORMIXSERVER = 'mst02_tcp' ] || [ $INFORMIXSERVER = 'tst2_tcp' ]
+then 
+
+	export server='m02'
+	export dbserver='mst02_tcp'
+
+	echo
+	echo '-------------------------------------------'
+	echo '     백업할 테이블의 유형을 선택하세요'
+	echo '-------------------------------------------'
+	echo '     1) 일 주기 테이블'
+	echo '     2) 월 주기 테이블'
+	echo '     0) 빠져 나가기'
+	echo '-------------------------------------------'
+	echo '     > \c'
+	read yn
+	echo
+
+	if [ $yn -eq 1 ]; then 
+	
+		echo
+		echo '-------------------------------------------'
+		echo '     백업할 테이블의 유형을 선택하세요'
+		echo '-------------------------------------------'
+		echo '     1) 영구보관 (서버보존   7일) 테이블'
+		echo '     2) 영구보관 (서버보존  31일) 테이블'
+		echo '     3) 영구보관 (서버보존  62일) 테이블'
+		echo '     4) 영구보관 (서버보존 184일) 테이블'
+		echo '-------------------------------------------'
+		echo '     > \c'
+		read yn
+		echo
+	
+		if [ $yn -eq 1 ]; then 
+			export term='d'
+			export save='p'
+			export day='7'
+			cd $server/day/$save
+		elif [ $yn -eq 2 ]; then
+			export term='d'
+			export save='p'
+			export day='31'
+			cd $server/day/$save
+		elif [ $yn -eq 3 ]; then
+			export term='d'
+			export save='p'
+			export day='62'
+			cd $server/day/$save
+		elif [ $yn -eq 4 ]; then
+			export term='d'
+			export save='p'
+			export day='184'
+			cd $server/day/$save
+		else
+			echo '입력 오류 입니다'
+			exit
+		fi
+
+dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select first 1 to_char( today - $minus -1 - $day, "%Y%m%d" ) tabdate from dual;
+!
+
+		echo '1,$s/ //g\nw\nq' | ed $TempFile1 > /dev/null
+		export theday=`cat $TempFile1`
+		if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select to_char( today - $minus -1 -$day, "%Y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -2 -$day, "%Y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -3 -$day, "%Y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -4 -$day, "%Y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -5 -$day, "%Y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -6 -$day, "%Y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -7 -$day, "%Y%m%d" ) tabdate from dual;
+!
+
+		export tables=`echo 'tables_'$term'_bak_'$save'_'$day`
+		rcp `echo ${server}':/informix/SCHEMA/tables_'$term'_bak_'$save'_'$day` .
+	
+		echo
+		echo '-------------------------------------------'
+		for i in `cat $tables`
+		do
+			echo $i$theday
+		done
+		echo '-------------------------------------------'
+		cat $TempFile1
+		echo '-------------------------------------------'
+		echo '이 테이블들을 backup 하면 되겠습니까? \c'
+		read yn
+		if [ $yn = 'y' ]
+		then
+	
+			for i in `cat $tables`
+			do
+				if [ -f $TempFile2 ]; then rm $TempFile2; fi
+	
+				if [ -d $i ]
+				then echo '기존의 '$i' 디렉토리를 사용합니다.'
+				else mkdir $i; echo $i' 디렉토리를 만듭니다.'
+				fi
+	
+				if [ -d $i/$i$theday ]
+				then echo '기존의 '$i$theday' 디렉토리를 사용합니다.'
+				else mkdir $i/$i$theday; echo $i$theday' 디렉토리를 만듭니다.'
+				fi
+	
+				for j in `cat $TempFile1`
+				do
+					echo $i$j >> $TempFile2
+				done 
+	
+				count $TempFile2 | grep -v '^$' | grep -v '없음' > ${i}_${theday}.cnt
+				cd $i/$i$theday
+				for k in `cat $TempFile2`
+				do
+					if [ -f $TempFile3 ]; then rm $TempFile3; fi
+					if [ -f $TempFile4 ]; then rm $TempFile4; fi
+
+# 카드번호 삭제 필요 테이블 Check 후 Unload 시작
+
+					export cardtable='none'
+					export cardcolumn='none'
+               rcp m02:/informix/SCHEMA/tables_d_card .
+               for ct in `cat tables_d_card | $CAWK -F ' ' '{print $1}'`
+					do
+						if [ $i = $ct ]; then
+							export cardtable=$i
+							export cardcolumn1=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $2}'`
+							export column1len=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $3}'`
+							export cardcolumn2=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $4}'`
+							export column2len=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $5}'`
+							export cardcolumn3=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $6}'`
+							export column3len=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $7}'`
+						fi
+					done
+
+					if [ $cardtable = 'none' ]; then
+# 일반 Table Unload 시작
+						unload $k 1> /dev/null 2> $TempFile3
+# 일반 Table Unload 완료
+					else
+						dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+							unload to $TempFile4
+							select c.colno, c.colname
+							  from syscolumns c, systables t
+							 where t.tabname = '$k'
+							   and t.tabid = c.tabid
+							 order by 1;
+!
+						export sql='unload to '$k'.unl select '
+						export NumberOfCol=`cat $TempFile4 | wc -l`
+						for columns in `cat $TempFile4`
+						do
+							export colno=`echo $columns | $CAWK -F '|' '{print $1}'`
+							export colname=`echo $columns | $CAWK -F '|' '{print $2}'`
+							export sql=$sql$colname
+							if [ $colname = $cardcolumn1 ]; then
+								export sql=$sql'[1,8] || "xxxx" || '$colname'[13,'$column1len']'
+							elif [ x$colname = x$cardcolumn2 ]; then
+								export sql=$sql'[1,8] || "xxxx" || '$colname'[13,'$column2len']'
+							elif [ x$colname = x$cardcolumn3 ]; then
+								export sql=$sql'[1,8] || "xxxx" || '$colname'[13,'$column3len']'
+							fi
+							if [ $colno -lt $NumberOfCol ]; then 
+								export sql=$sql','
+							fi
+						done
+						export sql=$sql' from '$k
+						echo 'Card No 3rd Range Deleted\c'
+						dbaccess $DBNAME <<! 1> /dev/null 2> $TempFile3
+							$sql
+!
+						if [ -f $TempFile4 ]; then rm $TempFile4; fi
+						echo $k >> /backlog/informix/work/tables_x.m02_`date +"%Y%m%d"`
+					fi
+
+					rm tables_d_card
+
+# 카드번호 삭제 필요 테이블 Check 후 Unload 완료
+
+					cat $TempFile3 | $CAWK -F ' ' '{
+						{ if ( $3 == "unloaded." ) printf("%30s :%10d\n", "'$k'", $1); }
+					}' > $TempFile4
+					cat $TempFile4
+					cat $TempFile4 >> ../../${i}_${theday}.bak
+					rsh m02 /informix/tool/sossch $k > $k.sql
+				done
+				cd ../..
+			done
+
+			rm $tables
+	
+		else
+	
+			echo '취소 되었습니다.'
+	
+		fi
+
+	elif [ $yn -eq 2 ]; then 
+
+		echo
+		echo '-------------------------------------------'
+		echo '     백업할 테이블의 유형을 선택하세요'
+		echo '-------------------------------------------'
+		echo '     1) 영구보관 (서버보존 6개월) 테이블'
+		echo '     2) 영구보관 (서버보존   1년) 테이블'
+		echo '     3) 영구보관 (서버보존   2년) 테이블'
+		echo '     4) 영구보관 (서버보존   2년) 마이장부'
+		echo '     5) 영구보관 (서버보존   3년) 테이블'
+		echo '     6) 영구보관 (서버보존   5년) 테이블'
+		echo '-------------------------------------------'
+		echo '     > \c'
+		read yn
+		echo
+	
+		if [ $yn -eq 1 ]; then 
+			export term='m'
+			export save='p'
+			export month='6'
+			cd $server/month/$save
+		elif [ $yn -eq 2 ]; then
+			export term='m'
+			export save='p'
+			export month='12'
+			cd $server/month/$save
+		elif [ $yn -eq 3 ]; then
+			export term='m'
+			export save='p'
+			export month='24'
+			cd $server/month/$save
+		elif [ $yn -eq 4 ]; then
+			export term='m'
+			export save='p'
+			export month='24'
+			cd $server/month/$save
+			export server='henry'
+			export dbserver='henry_tcp'
+		elif [ $yn -eq 5 ]; then
+			export term='m'
+			export save='p'
+			export month='36'
+			cd $server/month/$save
+		elif [ $yn -eq 6 ]; then
+			export term='m'
+			export save='p'
+			export month='60'
+			cd $server/month/$save
+		else
+			echo '입력 오류 입니다'
+			exit
+		fi
+
+dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select first 1 to_char( today - interval(`expr $month + $minus + 1`) month to month, "%Y%m" ) tabdate from dual;
+!
+
+		echo '1,$s/ //g\nw\nq' | ed $TempFile1 > /dev/null
+		export themonth=`cat $TempFile1`
+		if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+		export tables=`echo 'tables_'$term'_bak_'$save'_'$month`
+		
+		if [ $server = 'm02' ]
+		then rcp `echo ${server}':/informix/SCHEMA/tables_'$term'_bak_'$save'_'$month` .
+#######################################################################################
+#     마이장부 이관이 끝나면 아래 라인을 수정하라.
+		else rcp `echo 'm03:/informix/SCHEMA/M03/tables_'$term'_bak_'$save'_'$month` .
+#######################################################################################
+		fi
+	
+		echo
+		echo '-------------------------------------------'
+		for i in `cat $tables`
+		do
+			echo $i$themonth
+		done
+		echo '-------------------------------------------'
+		echo $themonth
+		echo '-------------------------------------------'
+		echo '이 테이블들을 backup 하면 되겠습니까? \c'
+		read yn
+		if [ $yn = 'y' ]
+		then
+	
+			for i in `cat $tables`
+			do
+	
+				if [ -d $i ]
+				then echo '기존의 '$i' 디렉토리를 사용합니다.'
+				else mkdir $i; echo $i' 디렉토리를 만듭니다.'
+				fi
+	
+				count $i$themonth ${DBNAME}@${dbserver} | grep -v '^$' | grep -v '없음' > ${i}_${themonth}.cnt
+				cd $i
+
+				if [ -f $TempFile3 ]; then rm $TempFile3; fi
+				if [ -f $TempFile4 ]; then rm $TempFile4; fi
+				unload $i$themonth ${DBNAME}@${dbserver} 1> /dev/null 2> $TempFile3
+				cat $TempFile3 | $CAWK -F ' ' '{
+					{ if ( $3 == "unloaded." ) printf("%30s :%10d\n", "'$i$themonth'", $1); }
+				}' > $TempFile4
+				cat $TempFile4
+				cat $TempFile4 >> ../${i}_${themonth}.bak
+				rsh $server /informix/tool/sossch $i$themonth > $i$themonth.sql
+
+				cd ..
+			done
+	
+		else
+	
+			echo '취소 되었습니다.'
+	
+		fi
+		
+		rm $tables
+
+	elif [ $yn -eq 0 ]; then 
+
+		echo
+		echo '빠이빠이'
+		exit
+
+	else
+
+		echo
+		echo '잘못 입력 하셨습니다.'
+		exit
+
+	fi
+	
+
+###########################################
+#   업무계
+###########################################
+
+elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'tst_tcp' ]; then
+
+	export server='m01'
+
+	echo
+	echo '-------------------------------------------'
+	echo '     백업할 테이블의 유형을 선택하세요'
+	echo '-------------------------------------------'
+	echo '     1) 일 주기 테이블'
+	echo '     2) 월 주기 테이블'
+	echo '     0) 빠져 나가기'
+	echo '-------------------------------------------'
+	echo '     > \c'
+	read yn
+	echo
+
+	if [ $yn -eq 1 ]; then 
+	
+		echo
+		echo '-------------------------------------------'
+		echo '     백업할 테이블의 유형을 선택하세요'
+		echo '-------------------------------------------'
+		echo '     1) 1 년보관 (서버보존  31일) 테이블'
+		echo '     2) 영구보관 (서버보존  31일) 테이블'
+		echo '     3) 영구보관 (서버보존  92일) 테이블'
+		echo '     4) 영구보관 (서버보존 366일) 테이블'
+		echo '-------------------------------------------'
+		echo '     > \c'
+		read yn
+		echo
+	
+		if [ $yn -eq 1 ]; then 
+			export term='d'
+			export save='1'
+			export day='31'
+			cd $server/day/$save
+		elif [ $yn -eq 2 ]; then
+			export term='d'
+			export save='p'
+			export day='31'
+			cd $server/day/$save
+		elif [ $yn -eq 3 ]; then
+			export term='d'
+			export save='p'
+			export day='92'
+			cd $server/day/$save
+		elif [ $yn -eq 4 ]; then
+			export term='d'
+			export save='p'
+			export day='366'
+			cd $server/day/$save
+		else
+			echo '입력 오류 입니다'
+			exit
+		fi
+
+dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select first 1 to_char( today - $minus -1 - $day, "%Y%m%d" ) tabdate from dual;
+!
+echo '1,$s/ //g\nw\nq' | ed $TempFile1 > /dev/null
+export theday=`cat $TempFile1`
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select to_char( today - $minus -1 -$day, "%y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -2 -$day, "%y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -3 -$day, "%y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -4 -$day, "%y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -5 -$day, "%y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -6 -$day, "%y%m%d" ) tabdate from dual
+union all
+select to_char( today - $minus -7 -$day, "%y%m%d" ) tabdate from dual;
+!
+	
+		export tables=`echo 'tables_'$term'_bak_'$save'_'$day`
+		rcp `echo ${server}':/informix/SCHEMA/tables_'$term'_bak_'$save'_'$day` .
+	
+		echo
+		echo '-------------------------------------------'
+		for i in `cat $tables`
+		do
+			echo $i$theday
+		done
+		echo '-------------------------------------------'
+		cat $TempFile1
+		echo '-------------------------------------------'
+		echo '이 테이블들을 backup 하면 되겠습니까? \c'
+		read yn
+		if [ $yn = 'y' ]
+		then
+	
+			for i in `cat $tables`
+			do
+				if [ -f $TempFile2 ]; then rm $TempFile2; fi
+	
+				if [ -d $i ]
+				then echo '기존의 '$i' 디렉토리를 사용합니다.'
+				else mkdir $i; echo $i' 디렉토리를 만듭니다.'
+				fi
+	
+				if [ -d $i/$i$theday ]
+				then echo '기존의 '$i$theday' 디렉토리를 사용합니다.'
+				else mkdir $i/$i$theday; echo $i$theday' 디렉토리를 만듭니다.'
+				fi
+	
+				for j in `cat $TempFile1`
+				do
+					echo $i$j >> $TempFile2
+				done 
+	
+				count $TempFile2 | grep -v '^$' | grep -v '없음' > ${i}_${theday}.cnt
+				cd $i/$i$theday
+				for k in `cat $TempFile2`
+				do
+					if [ -f $TempFile3 ]; then rm $TempFile3; fi
+					if [ -f $TempFile4 ]; then rm $TempFile4; fi
+
+# 카드번호 삭제 필요 테이블 Check 후 Unload 시작
+
+					export cardtable='none'
+					export cardcolumn='none'
+               rcp m01:/informix/SCHEMA/tables_d_card .
+               for ct in `cat tables_d_card | $CAWK -F ' ' '{print $1}'`
+					do
+						if [ $i = $ct ]; then
+							export cardtable=$i
+							export cardcolumn1=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $2}'`
+							export column1len=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $3}'`
+							export cardcolumn2=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $4}'`
+							export column2len=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $5}'`
+							export cardcolumn3=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $6}'`
+							export column3len=`grep ^$ct tables_d_card | $CAWK -F ' ' '{print $7}'`
+						fi
+					done
+
+					if [ $cardtable = 'none' ]; then
+# 일반 Table Unload 시작
+						unload $k 1> /dev/null 2> $TempFile3
+# 일반 Table Unload 완료
+					else
+						dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+							unload to $TempFile4
+							select c.colno, c.colname
+							  from syscolumns c, systables t
+							 where t.tabname = '$k'
+							   and t.tabid = c.tabid
+							 order by 1;
+!
+						export sql='unload to '$k'.unl select '
+						export NumberOfCol=`cat $TempFile4 | wc -l`
+						for columns in `cat $TempFile4`
+						do
+							export colno=`echo $columns | $CAWK -F '|' '{print $1}'`
+							export colname=`echo $columns | $CAWK -F '|' '{print $2}'`
+							export sql=$sql$colname
+							if [ $colname = $cardcolumn1 ]; then
+								export sql=$sql'[1,8] || "xxxx" || '$colname'[13,'$column1len']'
+							elif [ x$colname = x$cardcolumn2 ]; then
+								export sql=$sql'[1,8] || "xxxx" || '$colname'[13,'$column2len']'
+							elif [ x$colname = x$cardcolumn3 ]; then
+								export sql=$sql'[1,8] || "xxxx" || '$colname'[13,'$column3len']'
+							fi
+							if [ $colno -lt $NumberOfCol ]; then 
+								export sql=$sql','
+							fi
+						done
+						export sql=$sql' from '$k
+						echo 'Card No 3rd Range Deleted\c'
+						dbaccess $DBNAME <<! 1> /dev/null 2> $TempFile3
+							$sql
+!
+						if [ -f $TempFile4 ]; then rm $TempFile4; fi
+						echo $k >> /backlog/informix/work/tables_x.`date +"%Y%m%d"`
+					fi
+
+					rm tables_d_card
+
+# 카드번호 삭제 필요 테이블 Check 후 Unload 완료
+
+					cat $TempFile3 | $CAWK -F ' ' '{
+						{ if ( $3 == "unloaded." ) printf("%30s :%10d\n", "'$k'", $1); }
+					}' > $TempFile4
+					cat $TempFile4
+					cat $TempFile4 >> ../../${i}_${theday}.bak
+					rsh m01 /informix/tool/sossch $k > $k.sql
+				done
+				cd ../..
+			done
+
+			rm $tables
+	
+		else
+	
+			echo '취소 되었습니다.'
+	
+		fi
+
+	elif [ $yn -eq 2 ]; then 
+
+		echo
+		echo '-------------------------------------------'
+		echo '     백업할 테이블의 유형을 선택하세요'
+		echo '-------------------------------------------'
+		echo '     1) 영구보관 (서버보존 2개월) 테이블 (현재없음)'
+		echo '     2) 영구보관 (서버보존 3개월) 테이블'
+		echo '     3) 영구보관 (서버보존 6개월) 테이블'
+		echo '     4) 영구보관 (서버보존 1년) 테이블'
+		echo '-------------------------------------------'
+		echo '     > \c'
+		read yn
+		echo
+	
+		if [ $yn -eq 1 ]; then 
+			export term='m'
+			export save='p'
+			export month='2'
+			cd $server/month/$save
+		elif [ $yn -eq 2 ]; then 
+			export term='m'
+			export save='p'
+			export month='3'
+			cd $server/month/$save
+		elif [ $yn -eq 3 ]; then
+			export term='m'
+			export save='p'
+			export month='6'
+			cd $server/month/$save
+		elif [ $yn -eq 4 ]; then
+			export term='m'
+			export save='p'
+			export month='12'
+			cd $server/month/$save
+		else
+			echo '입력 오류 입니다'
+			exit
+		fi
+
+dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select first 1 to_char( today - interval(`expr $month + $minus + 1`) month to month, "%y%m" ) tabdate from dual;
+!
+
+		echo '1,$s/ //g\nw\nq' | ed $TempFile1 > /dev/null
+		export themonth=`cat $TempFile1`
+		if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+		export tables=`echo 'tables_'$term'_bak_'$save'_'$month`
+		rcp `echo ${server}':/informix/SCHEMA/tables_'$term'_bak_'$save'_'$month` .
+	
+		echo
+		echo '-------------------------------------------'
+		for i in `cat $tables`
+		do
+			echo $i$themonth
+		done
+		echo '-------------------------------------------'
+		echo $themonth
+		echo '-------------------------------------------'
+		echo '이 테이블들을 backup 하면 되겠습니까? \c'
+		read yn
+		if [ $yn = 'y' ]
+		then
+	
+			for i in `cat $tables`
+			do
+	
+				if [ -d $i ]
+				then echo '기존의 '$i' 디렉토리를 사용합니다.'
+				else mkdir $i; echo $i' 디렉토리를 만듭니다.'
+				fi
+	
+				count $i$themonth | grep -v '^$' | grep -v '없음' > ${i}_${themonth}.cnt
+				cd $i
+
+				if [ -f $TempFile3 ]; then rm $TempFile3; fi
+				if [ -f $TempFile4 ]; then rm $TempFile4; fi
+				unload $i$themonth 1> /dev/null 2> $TempFile3
+				cat $TempFile3 | $CAWK -F ' ' '{
+					{ if ( $3 == "unloaded." ) printf("%30s :%10d\n", "'$i$themonth'", $1); }
+				}' > $TempFile4
+				cat $TempFile4
+				cat $TempFile4 >> ../${i}_${themonth}.bak
+				rsh m01 /informix/tool/sossch $i$themonth > $i$themonth.sql
+
+				cd ..
+			done
+
+			rm $tables
+	
+		else
+	
+			echo '취소 되었습니다.'
+	
+		fi
+
+	elif [ $yn -eq 0 ]; then 
+
+		echo
+		echo '빠이빠이'
+		exit
+
+	else
+
+		echo
+		echo '잘못 입력 하셨습니다.'
+		exit
+
+	fi
+
+###########################################
+#   신 마이장부
+###########################################
+
+elif [ $INFORMIXSERVER = 'henry_tcp' ]; then
+
+	export server='henry'
+
+	echo
+	echo '-------------------------------------------'
+	echo '     백업할 테이블의 유형을 선택하세요'
+	echo '-------------------------------------------'
+	echo '     2) 월 주기 테이블'
+	echo '     0) 빠져 나가기'
+	echo '-------------------------------------------'
+	echo '     > \c'
+	read yn
+	echo
+
+	if [ $yn -eq 2 ]; then 
+
+		echo
+		echo '-------------------------------------------'
+		echo '     백업할 테이블의 유형을 선택하세요'
+		echo '-------------------------------------------'
+		echo '     1) 영구보관 (서버보존 1년) 테이블'
+		echo '-------------------------------------------'
+		echo '     > \c'
+		read yn
+		echo
+	
+		if [ $yn -eq 1 ]; then 
+			export term='m'
+			export save='p'
+			export month='12'
+			cd $server/month/$save
+		else
+			echo '입력 오류 입니다'
+			exit
+		fi
+
+		dbaccess $DBNAME <<! 1> /dev/null 2> /dev/null
+			set isolation to dirty read;
+			unload to $TempFile1 delimiter ' '
+			select first 1 to_char( today - interval(`expr $month + $minus + 1`) month to month, "%y%m" ) tabdate from dual;
+!
+
+		echo '1,$s/ //g\nw\nq' | ed $TempFile1 > /dev/null
+		export themonth=`cat $TempFile1`
+		if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+		export tables=`echo 'tables_'$term'_bak_'$save'_'$month`
+		rcp `echo ${server}':/informix/SCHEMA/tables_'$term'_bak_'$save'_'$month` .
+	
+		echo
+		echo '-------------------------------------------'
+		for i in `cat $tables`
+		do
+			echo $i$themonth
+		done
+		echo '-------------------------------------------'
+		echo $themonth
+		echo '-------------------------------------------'
+		echo '이 테이블들을 backup 하면 되겠습니까? \c'
+		read yn
+		if [ $yn = 'y' ]
+		then
+	
+			for i in `cat $tables`
+			do
+	
+				if [ -d $i ]
+				then echo '기존의 '$i' 디렉토리를 사용합니다.'
+				else mkdir $i; echo $i' 디렉토리를 만듭니다.'
+				fi
+	
+				count $i$themonth | grep -v '^$' | grep -v '없음' > ${i}_${themonth}.cnt
+				cd $i
+
+				if [ -f $TempFile3 ]; then rm $TempFile3; fi
+				if [ -f $TempFile4 ]; then rm $TempFile4; fi
+				unload $i$themonth 1> /dev/null 2> $TempFile3
+				cat $TempFile3 | $CAWK -F ' ' '{
+					{ if ( $3 == "unloaded." ) printf("%30s :%10d\n", "'$i$themonth'", $1); }
+				}' > $TempFile4
+				cat $TempFile4
+				cat $TempFile4 >> ../${i}_${themonth}.bak
+				ds /informix/tool/sossch $i$themonth > $i$themonth.sql
+
+				cd ..
+			done
+
+			rm $tables
+	
+		else
+	
+			echo '취소 되었습니다.'
+	
+		fi
+
+	elif [ $yn -eq 0 ]; then 
+
+		echo
+		echo '빠이빠이'
+		exit
+
+	else
+
+		echo
+		echo '잘못 입력 하셨습니다.'
+		exit
+
+	fi
+
+else
+
+	echo '환경 설정을 다시 확인하세요 ^^'
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+if [ -f $TempFile3 ]; then rm $TempFile3; fi
+if [ -f $TempFile4 ]; then rm $TempFile4; fi
+
+done ##### Main While Loop
