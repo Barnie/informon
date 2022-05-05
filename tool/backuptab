@@ -3,6 +3,8 @@
 # 
 #   backuptab : BCV에서 Table을 ASCii Backup하는 Shell입니다
 #
+#   작성자 : 바니                 작성일자 : 2003년 06월 23일
+#                                 최종수정 : 2009년 06월 10일
 #                                 표준버전 : v0.2
 #
 #   사용법 : backuptab (현재일자 이전 몇일)
@@ -72,11 +74,11 @@ cd /backlog/informix
 #   정보계
 ###########################################
 
-if [ $INFORMIXSERVER = 'mst02_tcp' ] || [ $INFORMIXSERVER = 'tst2_tcp' ]
+if [ $INFORMIXSERVER = 'master2_tcp' ] || [ $INFORMIXSERVER = 'tst2_tcp' ]
 then 
 
 	export server='m02'
-	export dbserver='mst02_tcp'
+	export dbserver='master2_tcp'
 
 	echo
 	echo '-------------------------------------------'
@@ -420,7 +422,7 @@ select first 1 to_char( today - interval(`expr $month + $minus + 1`) month to mo
 #   업무계
 ###########################################
 
-elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'tst_tcp' ]; then
+elif [ $INFORMIXSERVER = 'master1_tcp' ] || [ $INFORMIXSERVER = 'test_tcp' ]; then
 
 	export server='m01'
 

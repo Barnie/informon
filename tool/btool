@@ -1,0 +1,319 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   btool : DB를 Check하는 Shell입니다 (운영근무자용)
+#
+#   작성자 : 바니                 작성일자 : 2003년
+#                                 최종수정 : 2008년 09월 08일
+#                                 표준버전 : v0.3
+#
+#   사용법 : btool [DB명]
+#            세부 메뉴 선택시 선택번호 뒤에 옵션을 줄 수 있다
+#   요파일 : chkgx chklog chkchk chkseg chkpfl chkraw chkltx chkdur chktab 
+#            승인 검사 필요 시 : chkaut
+#            비상승인 원장 싱크 확인 : chkmst
+#            Owner 0 Lock (Gx) 체크 : chklck0
+#            Sub Script : count check index
+#   결과물 : $TOOL/log/btool.yymmdd
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# Pagesize 확인 #########################################################
+export pagesize=`onstat -b | grep 'buffer size' | $CAWK -F 'buffer size' '
+                                                     { print $1 }
+                                                  ' | $CAWK -F ' ' '
+                                                          { print $NF }
+                                                       '`
+export pagesize=`expr $pagesize / 1024`
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$1" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+
+# Log File 시작
+export logfile='btool.'`date +"%y%m%d"`
+touch $TOOL/log/$logfile
+echo >> $TOOL/log/$logfile
+echo '------------------------------------------------' >> $TOOL/log/$logfile
+date >> $TOOL/log/$logfile
+echo '------------------------------------------------' >> $TOOL/log/$logfile
+
+# Informix 버젼 확인
+export version=`onstat -V | $CAWK -F ' Version ' '{ print $2 }' | $CAWK -F ' ' '{ print $1 }'`
+
+# OS 종류 확인
+export unix=`uname`
+
+echo '[0m\c'
+################### Default #############################################
+
+	echo
+	echo
+	echo
+	echo
+	echo
+	echo
+	echo
+	echo
+	echo
+	echo '+-------------------------------------------------------+  Informix [1m'$version'[0m'
+	echo '|[5m  Barnie Tool for Informix 9 ~ 11 on Any Unix Ver 0.6  [0m|  Pagesize [1m'$pagesize' K[0m'
+	echo '+-------------------------------------------------------+  [1m'$unix'[0m'
+	echo
+	echo '[5m 화면에 아무것도 뜨지 않아도 기다려 주세요 [0m'
+	echo
+	
+	echo '1) Informix Online 여부 확인                     : \c'
+		echo '1) Informix Online 여부 확인' >> $TOOL/log/$logfile
+     	onstat - > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+		temppar=`cat $TempFile1 | grep Informix | $CAWK -F ' -- ' '{ print $2 }'`
+		if [ $temppar = 'On-Line' ]
+		then
+			echo '[[46m정상[0m]'
+		else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+		fi
+		if [ -f $TempFile1 ]; then rm $TempFile1
+		fi
+
+	echo '2) 문제 있는 Global Transaction 확인 (10초 소요) : \c'
+		echo '2) 문제 있는 Global Transaction 확인 (10초 소요) ' >> $TOOL/log/$logfile
+     	chkgx 10 > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+      temppar=`cat $TempFile1 | grep '없습니다.' | wc -l`
+		if [ $temppar -gt 0 ]
+		then
+			echo '[[46m정상[0m]'
+		else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+		fi
+      if [ -f $TempFile1 ]; then rm $TempFile1
+      fi
+
+	echo '3) Logical Log Backup 정상여부 확인              : \c'
+		echo '3) Logical Log Backup 정상여부 확인' >> $TOOL/log/$logfile
+		if [ $INFORMIXSERVER = 'master01_tcp' ] || [ $INFORMIXSERVER = 'master02_tcp' ]
+		then
+	      chklog simple | tail -1 > $TempFile1
+			cat $TempFile1 >> $TOOL/log/$logfile
+			temppar1=`cat $TempFile1 | $CAWK -F ' ' '{ print $1 }'`
+			temppar2=`cat $TempFile1 | $CAWK -F ' ' '{ print $2 }'`
+			if [ $temppar1 -ge 85 ] && [ $temppar2 -ge 50 ]
+			then
+				echo '[[46m정상[0m]'
+			else
+  	   		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+			fi
+			if [ -f $TempFile1 ]; then rm $TempFile1
+			fi
+		else
+			echo '[[34;43mSKIP[0m]'
+		fi
+
+	echo '4) DBspace 여유 공간 확인                        : \c'
+		echo '4) Dbspace 여유 공간 확인' >> $TOOL/log/$logfile
+      chkchk > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+      temppar=`cat $TempFile1 | grep '41;33m' | wc -l`
+		if [ $temppar -eq 0 ]
+		then
+			echo '[[46m정상[0m]'
+		else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+		fi
+      if [ -f $TempFile1 ]; then rm $TempFile1
+      fi
+
+	echo '5) Memory Segment Size 확인                      : \c'
+		echo '5) Memory Segment Size 확인' >> $TOOL/log/$logfile
+      chkseg > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+      temppar=`cat $TempFile1 | grep Virtual | $CAWK -F ']' '{ print $1 }' | $CAWK -F '[' '{ print $2 }'`
+		if [ $temppar -le 7 ]
+		then
+			echo '[[46m정상[0m]'
+		else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+		fi
+      if [ -f $TempFile1 ]; then rm $TempFile1
+      fi
+
+	echo '6) Informix Profile 확인                         : \c'
+		echo '6) # Informix Profile 확인' >> $TOOL/log/$logfile
+      chkpfl simple > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+      temppar=`cat $TempFile1`
+		if [ $temppar = '000' ]
+		then
+			echo '[[46m정상[0m]'
+		else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+		fi
+      if [ -f $TempFile1 ]; then rm $TempFile1
+      fi
+
+	echo '7) Raw Device 정상 설정 여부 확인                : \c'
+		echo '7) Raw Device 정상 설정 여부 확인' >> $TOOL/log/$logfile
+      chkraw > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+      temppar=`cat $TempFile1 | grep '비정상' | wc -l`
+      if [ $temppar -eq 0 ]
+      then
+         echo '[[46m정상[0m]'
+      else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+      fi
+      if [ -f $TempFile1 ]; then rm $TempFile1
+      fi 
+
+	echo '8) Long Transaction 확인                         : \c'
+		echo '8) Long Transaction 확인' >> $TOOL/log/$logfile
+     	chkltx 20 > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+      temppar=`cat $TempFile1 | grep '41;33m' | wc -l`
+      if [ $temppar -eq 0 ]
+      then
+         echo '[[46m정상[0m]'
+      else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+      fi
+      if [ -f $TempFile1 ]; then rm $TempFile1
+      fi
+
+	echo '9) Checkpoint Duration 확인                      : \c'
+		echo '9) Checkpoint Duration 확인' >> $TOOL/log/$logfile
+     	chkdur 10000 | grep -v 'was 0 sec' > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+		if [ `cat $TempFile1 | wc -l` -gt 0 ]
+		then
+      	temppar=`cat $TempFile1 | sort -r +5 | head -1 | $CAWK -F ' ' '{ print $6 }'`
+		else
+			temppar=0
+		fi
+      if [ $temppar -le 20 ]
+      then
+         echo '[[46m정상[0m]'
+      else
+     		echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+      fi
+      if [ -f $TempFile1 ]; then rm $TempFile1
+      fi
+
+	echo '10) 신규 테이블 생성 확인                        : \c'
+		echo '10) 신규 테이블 생성 확인' >> $TOOL/log/$logfile
+		if [ $INFORMIXSERVER = 'master01_tcp' ] || [ $INFORMIXSERVER = 'master02_tcp' ] || [ $INFORMIXSERVER = 'master03_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $INFORMIXSERVER = 'neoecs' ]
+		then
+			if [ $INFORMIXSERVER = 'master03_tcp' ]
+			then
+				chktab 0 m > $TempFile1
+			else
+  		    	chktab > $TempFile1
+			fi
+			cat $TempFile1 >> $TOOL/log/$logfile
+			temppar=`cat $TempFile1 | grep '이상 징후 발견' | wc -l`
+			if [ $temppar -eq 0 ]
+			then
+				echo '[[46m정상[0m]'
+			else
+				echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+			fi
+			if [ -f $TempFile1 ]; then rm $TempFile1
+			fi
+		else
+			echo '[[34;43mSKIP[0m]'
+		fi
+
+	echo '11) 정상 승인 Check                              : \c'
+		echo '11) 정상 승인 Check' >> $TOOL/log/$logfile
+		if [ $INFORMIXSERVER = 'master01_tcp' ] || [ $INFORMIXSERVER = 'master02_tcp' ] || [ $INFORMIXSERVER = 'neoecs' ]
+		then
+	     	chkaut 10 > $TempFile1
+			cat $TempFile1 >> $TOOL/log/$logfile
+			temppar=`cat $TempFile1 | grep '없었습니다' | wc -l`
+			if [ $temppar -eq 0 ]
+			then
+				echo '[[46m정상[0m]'
+			else
+				echo '[[33;41m경고[0m] DBA에게 연락주세요' 
+			fi
+			if [ -f $TempFile1 ]; then rm $TempFile1
+			fi
+		else
+			echo '[[34;43mSKIP[0m]'
+		fi
+
+	if [ $INFORMIXSERVER = 'neoecs' ]
+	then
+		echo '12) 원장 이관 Check (비상승인 Only)              : \c'
+		chkmst > $TempFile1
+		cat $TempFile1 >> $TOOL/log/$logfile
+		temppar1=`cat $TempFile1 | grep '이상없음' | wc -l`
+      temppar2=`cat $TempFile1 | grep '41;33m' | wc -l`
+		if [ $temppar1 -eq 1 ] && [ $temppar2 -eq 0 ]
+		then
+			echo '[[46m정상[0m]'
+		else
+			echo '[[33;41m경고[0m] 이창완/윤호연 과장에게 연락주세요' 
+		fi
+		if [ -f $TempFile1 ]; then rm $TempFile1
+		fi
+	fi 
+
+#   	201) # 비정상적인 Owner 0 Lock 확인
+#			echo '201) # 비정상적인 Owner 0 Lock 확인' >> $TOOL/log/$logfile
+#	      if [ ! "$in_comm2" ]; then export in_comm2=120
+#      	fi
+#	      chklck0 $in_comm2 > $TempFile1
+#        cat $TempFile1
+#			cat $TempFile1 >> $TOOL/log/$logfile
+#        if [ -f $TempFile1 ]; then rm $TempFile1
+#        fi
+#      	echo
+#      	echo '주의 : Lock 발생 메시지가 뜨면 연락주시고, Lock이 없으면 아침에 알려주세요' 
+
+echo '--------------------------------------------------' >> $TOOL/log/$logfile
+
+# 바니툴 종료
+
+echo
+echo ' 앞으로도 바니툴 많이 사랑해주세요 *^^*'
+
+if [ -f $TempFile1 ]; then rm $TempFile1
+fi
