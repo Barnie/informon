@@ -1,0 +1,50 @@
+#!/bin/ksh
+
+####################################################################         
+# 
+#   chkact : Active 상태인 Session을 보여주는 Shell입니다.
+#
+#   사용법 : chkact (검사 간격 - 초단위)
+#            검사 간격을 입력하지 않을 경우 1초로 한다
+#
+####################################################################
+
+if [ ! "$1" ]
+then export timeslice=1
+else export timeslice=$1
+fi
+
+while true
+do
+
+	export cnt=0
+
+	echo '======================================================================'
+	date +"%Y년 %m월 %d일  %H시 %M분 %S초"
+	echo '----------------------------------------------------------------------'
+
+	for i in `onstat -g act | grep -v Informix | grep -v threads | grep -v status | grep -v '^$' | nawk -F ' ' '{
+	{ if ( $3 != '0' ) print $3 }
+	}'`
+	do
+
+		export cnt=`expr $cnt + 1`
+		export sid=`onstat -u | grep $i | nawk -F ' ' '{ {print $3} }'`
+
+		echo 'Session ID : '$sid
+		echo '-------------------------'
+		onstat -g ses $sid
+		echo '-------------------------'
+		export pid=`onstat -g ses | grep ^$sid | nawk -F ' ' '{ {print $4} }'`
+		echo 'Process ID : '$pid
+		echo '-------------------------'
+		ps -ef | grep $pid | grep -v 'grep '$pid
+		echo '----------------------------------------------------------------------'
+
+	done
+
+	echo '총 '$cnt'개의 Session이 Running 중입니다'
+
+	sleep $timeslice
+
+done
