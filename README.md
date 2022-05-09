@@ -5,10 +5,10 @@ informix monitoring tool
 JavaScripts
 
 ## ./sh
-Korn Shell Scripts
+Korn Shell Scripts v2
 
 ## ./tool
-Old Korn Shell Scripts
+Korn Shell Scripts v1
 
 
 
