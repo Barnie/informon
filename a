@@ -1,1 +1,1 @@
-git commit -m "close #8 Chunk의 전체공간과 여유공간을 확인"
+git commit -m "close #9 지정한 Table의 Column 정보를 수집하는 shell script"
