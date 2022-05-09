@@ -1,0 +1,189 @@
+#!/bin/ksh
+
+#########################################################################         
+# 
+#   chkchk : Chunk의 전체공간과 여유공간을 보여주는 Shell입니다
+#                                 표준버전 : v0.1
+#   사용법 : chkchk
+#   요파일 : $INFORMIXDIR/tool/etc/${INFORMIXSERVER}_chk.cnf 
+#            ( Chunk Limit 설정 파일 )
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# Pagesize 확인 #########################################################
+export pagesize=`onstat -b | grep 'buffer size' | $CAWK -F 'buffer size' '
+                                                     { print $1 }
+                                                  ' | $CAWK -F ' ' '
+                                                          { print $NF }
+                                                       '`
+export pagesize=`expr $pagesize / 1024`
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}
+export TempFile3=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp3_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+if [ -f $TempFile3 ]; then rm $TempFile3; fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+	set isolation to dirty read;
+	unload to $TempFile1 delimiter ' '
+	select d.name, sum(c.chksize), sum(c.nfree) 
+	  from sysdbspaces d, syschktab c
+	 where d.dbsnum = c.dbsnum
+	 group by d.name
+	 order by d.name;
+!
+
+if [ -f $INFORMIXDIR/tool/etc/${INFORMIXSERVER}_chk.cnf ]
+then
+
+	for i in `cat $INFORMIXDIR/tool/etc/${INFORMIXSERVER}_chk.cnf`
+	do
+		echo 'o\c'
+	
+		dbspace=`echo $i | $CAWK -F '|' '{ print $1 }'`
+		limit=`echo $i | $CAWK -F '|' '{ print $2 }'`
+		fullfree=`echo $i | $CAWK -F '|' '{ print $3 }'`
+	
+		dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+			set isolation to dirty read;
+			unload to $TempFile3 delimiter ' '
+			select d.name, sum(nvl(c.nfree,0)) free, count(c.nfree) fchks, 
+                $limit limit, $fullfree fullfree
+			  from sysdbspaces d, outer syschktab c
+			 where d.dbsnum = c.dbsnum
+			   and d.name = '$dbspace'
+			   and nfree > `expr $fullfree / $pagesize`
+			 group by d.name
+			 order by d.name;
+!
+
+	cat $TempFile3 >> $TempFile2
+	done
+
+fi
+
+# Chunk의 전체 공간과 여유 공간 표시
+echo 
+echo '-------------------------------------------------------'
+echo '[43;36mdbspace name        chunk total size    chunk free size[0m'
+echo '-------------------------------------------------------'
+cat $TempFile1 | $CAWK -F ' ' '
+{
+  	chksize=prtnum($2*'$pagesize');
+  	freesize=prtnum($3*'$pagesize');
+
+  	if ( $1 == "indexdbs" ) 
+     	printf("[4m%-19s %16s   %16s[0m\n", $1, chksize, freesize);
+  	else
+     	printf("%-19s %16s   %16s\n", $1, chksize, freesize);
+}
+function prtnum ( num ) {
+   result="";
+	orgnum=num;
+   while ( int(num / 1000 * 1000) > 0 )
+   {
+      temp=result;
+      if ( num - int(num / 1000) * 1000 == 0 && int(num / 1000) > 0)
+         result="000";
+      else if ( num - int(num / 1000) * 1000 < 10 && int(num / 1000) > 0)
+         result="00"(num - int(num / 1000) * 1000);
+      else if ( num - int(num / 1000) * 1000 < 100 && int(num / 1000) > 0)
+         result="0"(num - int(num / 1000) * 1000);
+      else result=(num - int(num / 1000) * 1000);
+
+      if ( num != orgnum ) result = result","temp;
+      num = int(num / 1000);
+   }
+   if ( result == "" ) result=0;
+
+	return result
+}
+'
+
+echo '-------------------------------------------------------'
+
+# 2G 이상 공간이 남은 Chunk 갯수
+if [ -f $INFORMIXDIR/tool/etc/${INFORMIXSERVER}_chk.cnf ]
+then 
+
+	echo '[43;36mdbspace name             free chunks    free chunk size[0m'
+	echo '-------------------------------------------------------'
+	cat $TempFile2 | $CAWK -F ' ' '
+	{
+	   freesize=prtnum($2*'$pagesize');
+		fullfree=prtnum($5);
+
+   	if ( $3 <= $4 )
+      	printf("[41;33m%-19s      %11d   %16s  [ %10s (%d) ][0m\n", $1, $3, freesize, fullfree, $4);
+   	else
+      	printf("%-19s      %11d   %16s  [ [32m%10s[0m ([33m%d[0m) ]\n", $1, $3, freesize, fullfree, $4);
+	
+	}
+	function prtnum ( num ) {
+	   result="";
+		orgnum=num;
+	   while ( int(num / 1000 * 1000) > 0 )
+	   {
+	      temp=result;
+	      if ( num - int(num / 1000) * 1000 == 0 && int(num / 1000) > 0)
+	         result="000";
+	      else if ( num - int(num / 1000) * 1000 < 10 && int(num / 1000) > 0)
+	         result="00"(num - int(num / 1000) * 1000);
+	      else if ( num - int(num / 1000) * 1000 < 100 && int(num / 1000) > 0)
+	         result="0"(num - int(num / 1000) * 1000);
+	      else result=(num - int(num / 1000) * 1000);
+
+	      if ( num != orgnum ) result = result","temp;
+	      num = int(num / 1000);
+	   }
+	   if ( result == "" ) result=0;
+
+		return result
+	}
+'
+
+else
+
+	echo 'Chunk 갯수 Check 설정파일이 없습니다'
+	echo '$INFORMIXDIR/tool/etc/${INFORMIXSERVER}_chk.cnf 파일에'
+	echo '필요하신 내용을 설정하세요'
+
+fi
+
+echo '-------------------------------------------------------'
+
+#########################################################################
+echo '[0m\c'
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+if [ -f $TempFile3 ]; then rm $TempFile3; fi
+#########################################################################
