@@ -1,0 +1,115 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chkcore : Core Dump History¸¦ º¸¿©ÁÖ´Â Shell ÀÔ´Ï´Ù
+#                                 Ç¥ÁØ¹öÀü : v0.3
+#
+#   »ç¿ë¹ý : chkcore
+#   ¿äÆÄÀÏ : chkcore_owner, $TOOL/etc/chkcore.lst (App ´ã´çÀÚ ÀúÀå)
+#
+#########################################################################
+
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+#########################################################################
+
+
+################### Default #############################################
+
+if [ `uname` != 'AIX' ]
+then
+	echo "This Tool is for AIX only. Sorry~!!!"
+	exit 0
+fi
+
+#if [ `hostname` = "hostname" ]
+#then
+#	CAT="strings"
+#else
+	CAT="cat"
+#fi
+
+
+LANG=C
+
+errorcode=`errpt | grep "SOFTWARE PROGRAM ABNORMALLY TERMINATED" | head -1 | $CAWK -F ' ' '{ print $1 }'`
+if [ ! "$errorcode" ]
+then
+	echo "Core File Not Found ^^"
+	exit 0
+fi
+
+# \047Àº ÀÛÀº µû¿ÈÇ¥
+errpt -aj $errorcode > $TempFile1
+$CAT $TempFile1 | $CAWK -F  ' ' '
+	BEGIN { start=0; datetime=""; corepath=""; processid=-1; }
+	{
+      if ( start==1 ) {
+			processid=$0;
+			start=0;
+		}
+      if ( start==2 ) {
+			corepath=$0;
+			start=0;
+		}
+      if ( start==3 ) {
+			if ( $0=="ADDITIONAL INFORMATION" )
+				printf("[35m %29s [0m %10d  %-24s  %-40s\n", "Check Errpt Manually", processid, datetime, corepath);
+			else
+				printf("[33m %29s [0m %10d  %-24s  %-40s\n", $0, processid, datetime, corepath);
+			start=0;
+		}
+		if ( $0=="USER\047S PROCESS ID:" ) start=1;
+		if ( $0=="CORE FILE NAME" ) start=2;
+		if ( $0=="PROGRAM NAME" ) start=3;
+		if ( $1=="Date/Time:" ) datetime=$2" "$3" "$4" "$5" "$6;
+   }
+' > $TempFile2
+
+LANG=ko_KR
+
+echo "----------------------------------------------------------------------------------------------------------------------"
+echo "[46m                  Process Name  Process ID  Date/Time                 Core File Name (Optional)                 Owner [0m" 
+echo "----------------------------------------------------------------------------------------------------------------------"
+cat $TempFile2 | $CAWK -F  ' ' '
+	{
+		printf("%-110s  [36m", $0); 
+		if ( $2$3$4=="CheckErrptManually" )
+			printf("[35m??????[0m\n");
+		else {
+			syscommand="chkcore_owner "$2;
+			system(syscommand);
+			printf("[0m");
+		}
+	}
+'
+echo "----------------------------------------------------------------------------------------------------------------------"
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#if [ -f $TempFile2 ]; then rm $TempFile2; fi
+
+echo "[errpt]ÈÄ ¿¡·¯ ÄÚµå¸¦ È®ÀÎÇÏ¿©, [errpt -aj ¿¡·¯ÄÚµå]·Î È®ÀÎÇÏ¼¼¿ä"

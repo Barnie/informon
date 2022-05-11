@@ -1,0 +1,46 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chkcore_owner : App. 담당자를 알려주는 chkcore의 Sub-Shell 입니다
+#
+#                                 표준버전 : v0.3
+#
+#   사용법 : chkcore_owner App이름
+#
+#########################################################################
+
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+if [ ! "$1" ]
+then
+	echo "사용법 : chkcore_owner App이름"
+else
+	if [ ! -f $TOOL/etc/chkcore.lst ]; then touch $TOOL/etc/chkcore.lst; fi
+
+	if [ `grep ^$1 $TOOL/etc/chkcore.lst | $CAWK -F '|' '{print $3}' | wc -l` -le 0 ]
+	then
+		owner='[미상]'
+	else
+		owner=`grep ^$1 $TOOL/etc/chkcore.lst | $CAWK -F '|' '{print $3}'`
+	fi
+	echo $owner
+fi
