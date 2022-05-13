@@ -1,0 +1,50 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chkdur2 : Online.log¿¡¼­ DurationÀÌ ±ä ½Ã°£À» º¸¿©ÁÖ´Â ShellÀÔ´Ï´Ù
+#
+#   »ç¿ë¹ý : chkdur2 [°á°ú Çà¼ö(default:20)]
+#
+#########################################################################
+
+export TOOL=$HOME/tool
+export TempTail=`tty | awk -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | nawk -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then export rows=20
+else export rows=$1
+fi
+
+export LOG_FILE=`onstat -c | grep '^MSGPATH' | nawk -F ' ' '{
+{ print $2 }
+}'` 
+
+grep -E "duration|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec" $LOG_FILE > $TempFile1
+
+echo '[36m---------------------------------[0m'
+echo '[33mCheckpoint DurationÀÌ ±ä ³à¼®µé^^[0m'
+echo '[36m---------------------------------[0m'
+echo '[43;31m    ¿ù  ÀÏ  ½Ã:ºÐ:ÃÊ  °æ°ú½Ã°£   [0m'
+echo '[36m---------------------------------[0m'
+
+nawk -F ' ' '
+BEGIN { day=0; month='etc'; }
+$2 ~ /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/ { day=$3; month=$2; }  
+$2 !~ /Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/ { printf("%6s%4d%10s%10d\n", month,day,$1,$6); }
+' $TempFile1 | sort -nr +3 | head -$rows
+
+echo '[36m---------------------------------[0m'
+
+
+################### Default #############################################
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+#########################################################################

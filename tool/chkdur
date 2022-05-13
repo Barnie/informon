@@ -1,0 +1,31 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chkdur : Checkpoint Duration을 보여주는 Shell입니다
+#                                 표준버전 : v0.1
+#
+#   사용법 : chkdur [Check할 online.log Line 수]
+#
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then export lines=200
+else export lines=$1
+fi
+
+tail -${lines} `onstat -c | grep MSGPATH | grep -v ^# | $CAWK -F ' ' '{ {print $2} }'` | grep duration
