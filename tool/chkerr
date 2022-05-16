@@ -1,0 +1,106 @@
+#!/bin/ksh
+
+####################################################################         
+# 
+#   chkerr : °¢ Session ´ç ÃÖ±Ù¿¡ ¹ß»ýÇÑ Error Code¸¦ º¸¿©ÁØ´Ù.
+#                                 Ç¥ÁØ¹öÀü : v0.3
+#
+#   »ç¿ë¹ý : chkerr -v (Verbose)
+#   ¿äÆÄÀÏ : chksid, chkpid
+#
+####################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+
+onstat -g sql | egrep -v Informix | egrep -v '^$' | egrep -v Current | egrep -v Database | nawk -F ' ' '{
+	{ if ( $7 != "0" ) printf("%d:%d:%d\n", $1, $7, $8); }
+}' > $TempFile1
+
+if [ x$1 = "x-v" ]
+then
+	for i in `cat $TempFile1`
+	do
+		export sid=`echo $i | nawk -F ':' '{ { print $1 } }'`
+		onstat -g sql `echo $sid` >> $TempFile2
+	done
+fi
+
+echo "---------------------------------------------------------------------------------------"
+echo "[5mSession ID            SQL Error   ISAM Error   Process ID       Process Name   Terminal[0m"
+echo "---------------------------------------------------------------------------------------"
+
+for i in `cat $TempFile1`
+do
+	export   sid=`echo $i | nawk -F ':' '{ { print $1 } }'`
+	export code1=`echo $i | nawk -F ':' '{ { print $2 } }'`
+	export code2=`echo $i | nawk -F ':' '{ { print $3 } }'`
+
+	case "$code1" in
+		-201)  export err1='¹®¹ý¿À·ù'$code1 ;;
+		-206)  export err1='Table¾øÀ½'$code1 ;;
+		-217)  export err1='¾ø´ÂColumn'$code1 ;;
+		-239)  export err1='Áßº¹'$code1 ;;
+		-243)  export err1='RowÁ¢±ÙºÒ°¡'$code1 ;;
+		-255)  export err1='Tx¹Ì½ÃÀÛ'$code1 ;;
+		-284)  export err1='SUBÄõ¸®1ÇàÀÌ»ó'$code1 ;;
+		-349)  export err1='DBÁ¢¼Ó¾ÈÇÔ'$code1 ;;
+		-367)  export err1='¹®ÀÚ¿­°è»êºÒ°¡'$code1 ;;
+		-391)  export err1='Null°ªÀÔ·Â'$code1 ;;
+		*)     # Unidentified Code:
+  			    export err1=$code1 ;;
+	esac
+
+	case "$code2" in
+		-100)  export err2='Áßº¹'$code2 ;;
+		-107)  export err2='Locked'$code2 ;;
+		-111)  export err2='¾øÀ½'$code2 ;;
+		*)     # Unidentified Flag:
+  		       export err2=$code2 ;;
+	esac
+
+   export pid=`chksid $sid`
+	printf "%10s   %18s   %10s   %10s %18s   %8s\n" $sid $err1 $err2 `chkpid $pid`
+
+done
+
+echo "---------------------------------------------------------------------------------------"
+
+if [ x$1 = "x-v" ]
+then
+	cat $TempFile2
+	echo "---------------------------------------------------------------------------------------"
+fi
+
+echo "¡Ø ÀÚ¼¼ÇÑ Error ³»¿ëÀ» º¸½Ã·Á¸é finderr ¸í·ÉÀ» »ç¿ëÇÏ¼¼¿ä"
+echo "   »ç¿ë¹ý : chkerr -v (Verbose)"
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
