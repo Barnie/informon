@@ -1,0 +1,150 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   chkext : Æ¯Á¤ Table(µé)ÀÇ Extent ÇÒ´çÇöÈ²À» º¸¿©ÁÖ´Â ShellÀÔ´Ï´Ù
+#                                 Ç¥ÁØ¹öÀü : v0.1
+#
+#   »ç¿ë¹ý : chkext (tables ÀÌÈÄ ÆÄÀÏ¸í È¤Àº Table¸í) [DB¸í]
+#   ¿äÇÔ¼ö : prtnum
+#
+####################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# Pagesize È®ÀÎ #########################################################
+export pagesize=`onstat -b | grep 'buffer size' | $CAWK -F 'buffer size' '
+                                                     { print $1 }
+                                                  ' | $CAWK -F ' ' '
+                                                          { print $NF }
+                                                       '`
+export pagesize=`expr $pagesize / 1024`
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+#########################################################################
+
+
+# DB¸í ¼³Á¤ #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+export sum=0
+
+if [ ! "$1" ]
+then
+
+	echo '»ç¿ë¹ý : chkext (tables ÀÌÈÄ ÆÄÀÏ¸í È¤Àº Table¸í) [DB¸í]'
+
+else
+
+	if [ -f tables$1 ]
+	then
+
+		for i in `cat tables$1`
+		do
+			printf "o"
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile2 delimiter ' '
+select {+ORDERED}
+		 '$dbname', s.tabname, p.nrows, p.nextns, p.nptotal, p.npused, p.fextsiz, p.nextsiz
+  from systables s, sysmaster:sysptnhdr p
+ where p.partnum = s.partnum
+   and s.tabname = '$i'
+   and s.tabtype = 'T';
+!
+			if [ `cat $TempFile2 | wc -l` -gt 0 ]
+			then
+				cat $TempFile2 >> $TempFile1
+				rm $TempFile2
+			else
+				echo 'Error '$i >> $TempFile1
+			fi
+		done
+
+		if [ -f ext$1 ]; then mv ext$1 ext$1.old
+		fi
+
+	else
+
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select {+ORDERED}
+		 '$dbname', s.tabname, p.nrows, p.nextns, p.nptotal, p.npused, p.fextsiz, p.nextsiz
+  from systables s, sysmaster:sysptnhdr p
+ where p.partnum = s.partnum
+   and s.tabname = '$1'
+   and s.tabtype = 'T';
+!
+
+	fi
+
+	echo >> ext$1
+	echo '--------------------------------------------------------------------------------------------' >> ext$1
+	echo '[5m  Database                  Table   Row Count  nExts  Total(K)   Used(K)  F.Ext(K)  N.Ext(K)[0m' >> ext$1
+	echo '--------------------------------------------------------------------------------------------' >> ext$1
+
+	cat $TempFile1 | $CAWK -F ' ' '{
+	{ 
+	   if ( $1 == "Error" )
+	      printf(" [4mNot Found[0m [5m%29s[0m\n", $2);                
+	   else {
+	      printf("%10s %22s %11d %6d %9d %9d %9d %9d\n", $1, $2, $3, $4, $5*'$pagesize', $6*'$pagesize', $7*'$pagesize', $8*'$pagesize'); 
+	   }
+	}
+}' >> ext$1
+
+	echo '--------------------------------------------------------------------------------------------' >> ext$1
+
+	export sum=`cat $TempFile1 | $CAWK '#
+	{ sum += $5 }         
+	END { printf("%d",sum) }
+#'`
+
+	export sum=`expr $sum \* $pagesize`
+
+	printf "Total %86s\n" `prtnum $sum` >> ext$1
+	echo '--------------------------------------------------------------------------------------------' >> ext$1
+
+	cat ext$1
+
+	if [ ! -f tables$1 ]; then rm ext$1
+	fi
+	if [ -f $TempFile1 ]; then rm $TempFile1
+	fi
+
+fi

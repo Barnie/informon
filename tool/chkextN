@@ -1,0 +1,112 @@
+#!/bin/ksh
+
+export TOOL=$HOME/tool
+export sum=0
+
+# Pagesize È®ÀÎ
+export pagesize=`onstat -b | grep 'buffer size' | nawk -F ',' {'
+{ print $5; }
+}' | nawk -F 'buffer' {'
+{ print $1 }
+}'`
+export pagesize=`expr $pagesize / 1024`
+
+
+if [ -f $TOOL/tmp/chkext.tmp ]; then rm $TOOL/tmp/chkext.tmp
+fi
+if [ -f $TOOL/tmp/chkext2.tmp ]; then rm $TOOL/tmp/chkext2.tmp
+fi
+
+if [ ! "$1" ]
+then
+
+echo '»ç¿ë¹ý : chkextN (tables ÀÌÈÄ ÆÄÀÏ¸í È¤Àº Table¸í) [Nologging DB¸í]'
+
+else
+
+if [ ! "$2" ]
+then
+export dbname='dbname'
+else
+export dbname=$2
+fi
+
+if [ -f tables$1 ]
+then
+
+for i in `cat tables$1`
+do
+printf "o"
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chkext2.tmp delimiter ' '
+select t.dbsname, t.tabname, p.nrows, p.nextns, p.nptotal, p.npused, p.fextsiz, p.nextsiz 
+  from sysptnhdr p, systabnames t
+ where p.partnum = t.partnum
+   and t.dbsname = '$dbname' 
+   and t.tabname = '$i'
+!
+if [ `cat $TOOL/tmp/chkext2.tmp | wc -l` -gt 0 ]
+then
+cat $TOOL/tmp/chkext2.tmp >> $TOOL/tmp/chkext.tmp
+rm $TOOL/tmp/chkext2.tmp
+else
+echo 'Error '$i >> $TOOL/tmp/chkext.tmp
+fi
+done
+
+if [ -f ext$1 ]; then rm ext$1
+fi
+
+else
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chkext.tmp delimiter ' '
+select t.dbsname, t.tabname, p.nrows, p.nextns, p.nptotal, p.npused, p.fextsiz, p.nextsiz 
+  from sysptnhdr p, systabnames t, $dbname:systables s
+ where p.partnum = t.partnum
+   and t.dbsname = '$dbname' 
+   and t.tabname = '$1'
+   and t.partnum = s.partnum
+   and s.tabtype = 'T'
+!
+
+fi
+
+echo >> ext$1
+echo '--------------------------------------------------------------------------------------------' >> ext$1
+echo '[5m  Database                  Table   Row Count  nExts  Total(K)   Used(K)  F.Ext(K)  N.Ext(K)[0m' >> ext$1
+echo '--------------------------------------------------------------------------------------------' >> ext$1
+
+cat $TOOL/tmp/chkext.tmp | nawk -F ' ' '{
+{ 
+   if ( $1 == "Error" )
+      printf(" [4mNot Found[0m [5m%29s[0m\n", $2);                
+   else {
+      printf("%10s %22s %11d %6d %9d %9d %9d %9d\n", $1, $2, $3, $4, $5*'$pagesize', $6*'$pagesize', $7*'$pagesize', $8*'$pagesize'); 
+   }
+}
+}' >> ext$1
+
+echo '--------------------------------------------------------------------------------------------' >> ext$1
+
+export sum=`cat $TOOL/tmp/chkext.tmp | awk '#
+{ sum += $5 }         
+END { print sum }
+#'`
+
+export sum=`expr $sum \* $pagesize`
+
+printf "Total %86s\n" `prtnum $sum` >> ext$1
+echo '--------------------------------------------------------------------------------------------' >> ext$1
+
+cat ext$1
+
+if [ ! -f tables$1 ]; then rm ext$1
+fi
+if [ -f $TOOL/tmp/chkext.tmp ]; then rm $TOOL/tmp/chkext.tmp
+fi
+
+
+fi
