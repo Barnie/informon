@@ -1,0 +1,33 @@
+#!/bin/ksh
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/chkfull.tmp ]; then rm $TOOL/tmp/chkfull.tmp
+fi
+
+if [ ! "$1" ];
+	then export option="t"
+	elif [ $1 = 's' ] || [ $1 = 't' ]; then export option=$1
+	else echo '사용법 : chkfull [ s / t ] s:Size순 t:시간순 [anything] 현재 디렉토리만 검색'
+	     exit
+fi
+
+if [ ! "$2" ];
+#	then ls -la | egrep "`date '+%2m월 %2d일'`" | egrep -v './' | egrep -v '일 200' > $TOOL/tmp/chkfull.tmp
+#	else ls -laFR | egrep "`date '+%2m월 %2d일'`" | egrep -v './' | egrep -v '일 200' > $TOOL/tmp/chkfull.tmp
+	then ls -la | egrep -v './' | egrep -v '일 200' > $TOOL/tmp/chkfull.tmp
+	else ls -laFR | egrep -v './' | egrep -v '일 200' > $TOOL/tmp/chkfull.tmp
+fi
+
+
+if [ $option = 's' ];
+then sort +4 -r -n -b $TOOL/tmp/chkfull.tmp
+else sort +5 -r -b  $TOOL/tmp/chkfull.tmp
+fi
+
+if [ -f $TOOL/tmp/chkfull.tmp ]; then rm $TOOL/tmp/chkfull.tmp
+fi
+
+echo
+echo '올해 날짜로 생성 및 변경된 File만 보여줍니다'
+echo '사용법 : chkfull [ s / t ] s:Size순 t:시간순 [anything] 현재 디렉토리만 검색'
