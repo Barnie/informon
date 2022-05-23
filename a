@@ -1,1 +1,1 @@
-git commit -m "close #15 chkfull : 파일시스템 full 원인 추적"
+git commit -m "close #16 Global Transaction 검사"

@@ -1,0 +1,57 @@
+#!/bin/ksh
+
+if [ ! "$1" ]
+then export sltime=120
+else export sltime=$1
+fi
+
+echo 
+echo '-----------------------------------------------------------'
+echo '[5m'$sltime'[0mÃÊ°£ À¯ÁöµÇ´Â Global TransactionÀ» °Ë»öÇÕ´Ï´Ù.'
+echo '-----------------------------------------------------------'
+
+export TOOL=$HOME/tool
+
+export INFORMIXDIR=/informix
+export INFORMIXSERVER=desc01_tcp
+export ONCONFIG=onconfig.desc01
+export INFORMIXSQLHOSTS=$INFORMIXDIR/etc/sqlhosts.desc01
+export DBNAME=ksnet
+
+
+if [ -f $TOOL/tmp/Gxtmp ]; then rm $TOOL/tmp/Gxtmp
+fi
+if [ -f $TOOL/tmp/firstGx.tmp ]; then rm $TOOL/tmp/firstGx.tmp
+fi
+if [ -f $TOOL/tmp/secondGx.tmp ]; then rm $TOOL/tmp/secondGx.tmp
+fi
+
+onstat -G | grep -v Informix | grep -v active | grep -v Global | grep -v address > $TOOL/tmp/firstGx.tmp
+/usr/bin/echo '1,$g/^$/d\nw\nq' | ed $TOOL/tmp/firstGx.tmp > /dev/null
+
+sleep $sltime
+
+onstat -G | grep -v Informix | grep -v active | grep -v Global | grep -v address > $TOOL/tmp/secondGx.tmp
+/usr/bin/echo '1,$g/^$/d\nw\nq' | ed $TOOL/tmp/secondGx.tmp > /dev/null
+
+/usr/bin/echo '1,$s/^/grep "/g\nw\nq' | ed $TOOL/tmp/secondGx.tmp > /dev/null
+/usr/bin/echo '1,$s/$/" \$TOOL\/tmp\/firstGx.tmp >> \$TOOL\/tmp\/Gxtmp/g\nw\nq' | ed $TOOL/tmp/secondGx.tmp > /dev/null
+
+
+chmod 700 $TOOL/tmp/secondGx.tmp
+$TOOL/tmp/secondGx.tmp
+
+if [ -f $TOOL/tmp/Gxtmp ]
+then
+cat $TOOL/tmp/Gxtmp
+rm $TOOL/tmp/Gxtmp
+else
+echo $sltime'ÃÊ°£ À¯ÁöµÈ Global TransactionÀÌ ¾ø½À´Ï´Ù.'
+fi
+
+echo '-----------------------------------------------------------'
+
+if [ -f $TOOL/tmp/firstGx.tmp ]; then rm $TOOL/tmp/firstGx.tmp
+fi
+if [ -f $TOOL/tmp/secondGx.tmp ]; then rm $TOOL/tmp/secondGx.tmp
+fi
