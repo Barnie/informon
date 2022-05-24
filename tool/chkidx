@@ -1,0 +1,9 @@
+#!/bin/ksh
+
+export tabname=$1
+
+dbaccess ksnet <<!
+select idxname || " : Levels = " || levels || ", Leaves = " || leaves::int || ", nRows = " || nrows::int8 as INDEX
+  from sysindices
+ where tabid = ( select tabid from systables where tabname = "$tabname" )
+!
