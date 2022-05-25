@@ -1,0 +1,49 @@
+#!/bin/ksh
+
+export TOOL=$HOME/tool
+
+if [ ! "$1" ]
+then export locks=2
+else export locks=$1
+fi
+
+if [ -f $TOOL/tmp/chklck.tmp ]; then rm $TOOL/tmp/chklck.tmp
+fi
+if [ -f $TOOL/tmp/chklck.tmp2 ]; then rm $TOOL/tmp/chklck.tmp2
+fi
+
+onstat -u | grep -v 'Dynamic Server' | grep -v '^$' | grep -v 'Userthreads' | grep -v 'address' | grep -v 'concurrent' > $TOOL/tmp/chklck.tmp2
+
+if [ `which fixhan | nawk -F ':' '{print $1}'` = "which" ]
+then
+	cp $TOOL/tmp/chklck.tmp2 $TOOL/tmp/chklck.tmp
+else
+	fixhan $TOOL/tmp/chklck.tmp2 > $TOOL/tmp/chklck.tmp
+fi
+
+echo '----------------------------------------------------------------------------------------'
+echo '[5mSession ID  User Name    Terminal  nLocks    Flags  Process Information                 [0m'
+echo '----------------------------------------------------------------------------------------'
+cat $TOOL/tmp/chklck.tmp | nawk -F ' ' '{
+{ 
+  if ( $8 >= '$locks' ) {
+    printf("%10d %10s %11s %7d  %7s  ", $3, $4, $5, $8, $2); 
+    system("chkpid `chksid "$3"` "$3);
+  }
+}
+}'
+echo '----------------------------------------------------------------------------------------'
+
+export sum=0
+export sum=`cat $TOOL/tmp/chklck.tmp | awk '#
+{ sum += $8 }
+END { print sum }
+#'`
+
+printf "Total %35d Locks\n" $sum
+echo '----------------------------------------------------------------------------------------'
+
+if [ -f $TOOL/tmp/chklck.tmp ]; then rm $TOOL/tmp/chklck.tmp
+fi
+if [ -f $TOOL/tmp/chklck.tmp2 ]; then rm $TOOL/tmp/chklck.tmp2
+fi

@@ -1,0 +1,70 @@
+#!/bin/ksh
+
+export gxlock=0
+
+if [ ! "$1" ]
+then timeslice=30
+else timeslice=$1
+fi
+
+echo
+echo '----------------------------------------------------'
+echo '[5m'$timeslice'[0mÃÊ°£ À¯ÁöµÇ´Â Owner 0 LockÀ» °Ë»öÇÕ´Ï´Ù.'
+echo '----------------------------------------------------'
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/chklck.tmp ]; then rm $TOOL/tmp/chklck.tmp
+fi
+if [ -f $TOOL/tmp/chklck.tmp2 ]; then rm $TOOL/tmp/chklck.tmp2
+fi
+
+onstat -k | egrep -v active | egrep -v Locks | egrep -v address | egrep -v Informix > $TOOL/tmp/chklck.tmp
+
+echo '1,$g/^$/d\nw\nq' | ed $TOOL/tmp/chklck.tmp > /dev/null
+
+cat $TOOL/tmp/chklck.tmp | nawk -F ' ' '{
+{ if ( $3 == 0 ) print $1; }
+}' > $TOOL/tmp/chklck.tmp2
+
+if [ `cat $TOOL/tmp/chklck.tmp2 | wc -l ` -gt 0 ]
+then
+
+echo 'Owner°¡ 0ÀÎ LockÀÌ'`cat $TOOL/tmp/chklck.tmp2 | wc -l`'°³ ÀÖ½À´Ï´Ù.'
+echo
+echo $timeslice'ÃÊ°£ À¯ÁöµÇ´Â Áö °Ë»çÇÕ´Ï´Ù.'
+sleep $timeslice
+echo
+
+if [ -f $TOOL/tmp/chklck.tmp ]; then rm $TOOL/tmp/chklck.tmp
+fi
+
+onstat -k | egrep -v active | egrep -v Locks | egrep -v address | egrep -v Informix > $TOOL/tmp/chklck.tmp
+
+echo '1,$g/^$/d\nw\nq' | ed $TOOL/tmp/chklck.tmp > /dev/null
+
+cat $TOOL/tmp/chklck.tmp | nawk -F ' ' '{
+{ if ( $3 == 0 ) print $1; }
+}' > $TOOL/tmp/chklck.tmp3
+
+for i in `cat $TOOL/tmp/chklck.tmp2`
+do
+if [ `grep $i $TOOL/tmp/chklck.tmp3 | wc -l` -gt 0 ]
+then
+export gxlock=`expr $gxlock + 1`
+fi 
+done
+
+if [ -f $TOOL/tmp/chklck.tmp ]; then rm $TOOL/tmp/chklck.tmp
+fi
+if [ -f $TOOL/tmp/chklck.tmp2 ]; then rm $TOOL/tmp/chklck.tmp2
+fi
+
+fi
+
+if [ $gxlock -gt 0 ]
+then
+echo 'ºñÁ¤»óÀûÀ¸·Î ÀâÇôÀÖ´Â Lock ¹®Á¦ ¹ß»ı~!!! »¡¸® DBA¿¡°Ô ¿¬¶ô¹Ù¶ø´Ï´Ù.' 
+else
+echo 'ºñÁ¤»óÀûÀ¸·Î ÀâÇôÀÖ´Â LockÀÌ ¾ø½À´Ï´Ù'
+fi

@@ -1,0 +1,19 @@
+#!/bin/ksh
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/chklck2.tmp ]; then rm $TOOL/tmp/chklck2.tmp
+fi
+
+onstat -u | grep -v 'Dynamic Server' | grep -v '^$' | grep -v 'Userthreads' | grep -v 'address' | grep -v 'concurrent' > $TOOL/tmp/chklck2.tmp
+
+export sum=0
+export sum=`cat $TOOL/tmp/chklck2.tmp | awk '#
+{ sum += $8 }
+END { print sum }
+#'`
+
+printf "%d" $sum
+
+if [ -f $TOOL/tmp/chklck2.tmp ]; then rm $TOOL/tmp/chklck2.tmp
+fi
