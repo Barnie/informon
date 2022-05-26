@@ -1,0 +1,96 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chklog : Logical LogÀÇ ¹é¾÷ »óÅÂ¸¦ È®ÀÎÇÏ´Â Shell ÀÔ´Ï´Ù.
+#                                 Ç¥ÁØ¹öÀü : v0.2
+#
+#   »ç¿ë¹ý : chklog [simple]
+#
+#########################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+
+if [ $INFORMIXSERVER = 'svr01_tcp' ] || [ $INFORMIXSERVER = 'dev01_tcp' ]
+	then export backupdir=Infolog1
+elif [ $INFORMIXSERVER = 'svr02_tcp' ] || [ $INFORMIXSERVER = 'dev02_tcp' ]
+	then export backupdir=Infolog2
+elif [ $INFORMIXSERVER = 'svr03_tcp' ]
+	then export backupdir=Infolog3
+elif [ $INFORMIXSERVER = 'newsvr' ]
+	then export backupdir=dbtemp
+else
+	echo 'È¯°æ ¼³Á¤À» È®ÀÎÇÏ¼¼¿ä'
+	exit
+fi
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select sum(1), sum(is_backed_up)
+  from syslogs;
+!
+
+echo
+
+export free=`df -k | grep $backupdir | $CAWK -F ' ' '{
+	{ print $3 }
+}'`
+export used=`du -k /$backupdir/ISM/LOG | $CAWK -F ' ' '{
+	{ print $1 }
+}'`
+
+
+if [ x$1 = 'xsimple' ]
+then
+
+	cat $TempFile1 | $CAWK -F ' ' '{ printf("%d ", 100 * $2 / $1); }'
+	expr 100 \* $free / `expr $free + $used`
+
+else
+
+	date
+	echo '--------------------------------------------------------'
+
+	cat $TempFile1 | $CAWK -F ' ' '{
+	{
+		printf("[33mÀüÃ¼ [32;43m%d[33;40m°³ÀÇ Logical Log Áß¿¡ [32;43m%d[33;40m°³°¡ Backup µÇ¾ú½À´Ï´Ù.[0m\n", $1, $2);
+	}
+}'
+	echo '--------------------------------------------------------'
+
+	export free=`prtnum $free`
+	export used=`prtnum $used`
+
+	printf "   Free : %sK         Used : %sK\n" $free $used
+	echo '--------------------------------------------------------'
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
