@@ -1,0 +1,76 @@
+#!/bin/ksh
+export LC_ALL=ko_KR.UTF-8
+export LANG=ko_KR.UTF-8
+
+####################################################################
+#
+#   chkltx_2013 : Log를 많이 사용중인 Transaction을 보여주는 Shell입니다
+#
+#   사용법 : chkltx_2013 [Log 사용률(%)]
+#
+####################################################################
+
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+
+if [ ! "$1" ]
+then
+export percent=20
+else
+export percent=$1
+fi
+
+export logs=`onstat -l | grep " active, " | $CAWK -F ' ' '
+{ print $1 }
+'`
+
+export clog=`onstat -l | $CAWK -F ' ' '
+{
+	if ( substr( $3, 5, 1 ) == "C" ) {
+		print $4;
+	}
+}'`
+
+date
+echo "[ Transactions ( ${percent}% ) ]"
+echo "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+echo "                                                                                                 est.                        session                                      #RSAM    total      used       dynamic" 
+echo "used  address          flags userthread       locks  begin_logpos      current logpos    isol    rb_time  retrys coord       id       user     tty      pid      hostname threads  memory     memory     explain"
+echo "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+
+onstat -x | $CAWK -v clog=$clog -v logs=$logs -v percent=$percent -F ' ' '
+BEGIN { on = 0; }
+{
+	# Transaction 정보가 끝났으면 체크 중지
+	if ( substr( $0, 1, 1 ) == " " ) {
+		on = 0;
+	}
+	# Transaction 정보 체크
+	if ( on == 1 && $5 != "-" ) {
+		split( $5, blog_array, ":" );
+		clog = clog * 1;
+		blog = blog_array[ 1 ] * 1;
+		if ( clog == "-" || blog == "-" ) {
+			used = 0;
+		} else {
+			used = ( clog - blog ) * 100 / logs;
+		}
+		if ( used >= percent ) {
+			printf( "%3d%%  %-17s%-6s%-17s%-7s%-18s%-18s%-8s%-9s%-7s%-12s", used, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 );
+			"~informix/bin/onstat -u | grep ^" $3 | getline onstat_u;
+			split( onstat_u, u_array, " " );
+			"~informix/bin/onstat -g ses | grep ^" u_array[ 3 ] | getline onstat_g_ses;
+			print onstat_g_ses;
+		}
+	}
+	# Transaction 정보가 시작되면 체크 시작
+	if ( $1 == "address" ) {
+		on = 1;
+	}
+}'
+
+echo "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"

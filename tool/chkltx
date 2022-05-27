@@ -1,0 +1,100 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   chkltx : Log¸¦ ¸¹ÀÌ »ç¿ëÁßÀÎ TransactionÀ» º¸¿©ÁÖ´Â ShellÀÔ´Ï´Ù
+#
+#   »ç¿ë¹ý : chkltx [Log »ç¿ë·ü(%)]
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+
+if [ -f $TOOL/tmp/chkltx.tmp ]; then rm $TOOL/tmp/chkltx.tmp
+fi
+
+if [ ! "$1" ]
+then
+export percent=20
+else
+export percent=$1
+fi
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chkltx.tmp delimiter ' '
+select count(*)::int from syslogs;
+!
+
+export logs=`cat $TOOL/tmp/chkltx.tmp`
+rm $TOOL/tmp/chkltx.tmp
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chkltx.tmp delimiter ' '
+select max(uniqid) from syslogs;
+!
+
+export clog=`cat $TOOL/tmp/chkltx.tmp`
+rm $TOOL/tmp/chkltx.tmp
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chkltx.tmp delimiter ' '
+select lower(hex(x.tx_addr)), x.tx_id, lower(hex(x.tx_owner)), s.sid, s.pid, 
+       x.tx_logbeg, x.tx_loguniq, (($clog - x.tx_logbeg + 1) * 100 / $logs)::int 
+  from systrans x, sysrstcb r, sysscblst s
+ where $clog - x.tx_logbeg >= ( $logs * $percent / 100)::int
+   and x.tx_logbeg > 0
+   and x.tx_owner = r.address
+   and r.sid = s.sid;
+!
+
+echo
+
+if [ `onstat -V | $CAWK -F '.' '{ printf("%1s", substr($3,1,1)); }'` = 'U' ]
+then 
+
+	echo 'LogÀÇ '$percent'%ÀÌ»óÀ» »ç¿ëÁßÀÎ Tx °Ë»ö ( Current Log : '$clog' / ÃÑ '$logs'°³ )'
+	echo '-------------------------------------------------------------------------------------------'
+	echo '[5mTx Addr.  (     Tx ID)  Thrd Addr.  Session ID  Process ID   Begin Log    Last Log  Used(%)[0m'
+	echo '-------------------------------------------------------------------------------------------'
+
+	cat $TOOL/tmp/chkltx.tmp | $CAWK -F ' ' '{
+	{ 
+		if ( $8 > 19 ) printf("[41;33m");
+ 	 	printf("%10s(%10d)  %10s  %10d  %10d  %10d  %10d  %7d[0m\n", 
+	     		   $1, $2, $3, $4, $5, $6, $7, $8); 
+	}
+}'
+
+	echo '-------------------------------------------------------------------------------------------'
+
+else
+
+	echo 'LogÀÇ '$percent'%ÀÌ»óÀ» »ç¿ëÁßÀÎ Tx °Ë»ö ( Current Log : '$clog' / ÃÑ '$logs'°³ )'
+	echo '-----------------------------------------------------------------------------------------------------------'
+	echo '[5mTx Addr.          (     Tx ID)  Thrd Addr.          Session ID  Process ID   Begin Log    Last Log  Used(%)[0m'
+	echo '-----------------------------------------------------------------------------------------------------------'
+
+	cat $TOOL/tmp/chkltx.tmp | $CAWK -F ' ' '{
+	{ 
+		if ( $8 > 19 ) printf("[41;33m");
+ 	 	printf("%18s(%10d)  %18s  %10d  %10d  %10d  %10d  %7d[0m\n", 
+	     		   $1, $2, $3, $4, $5, $6, $7, $8); 
+	}
+}'
+
+	echo '-----------------------------------------------------------------------------------------------------------'
+
+fi
+
+if [ -f $TOOL/tmp/chkltx.tmp ]; then rm $TOOL/tmp/chkltx.tmp
+fi
