@@ -1,0 +1,96 @@
+#!/bin/ksh
+
+####################################################################         
+# 
+#   chkmem : Session´ç ÇÒ´çµÈ Memory¸¦ º¸´Â ShellÀÔ´Ï´Ù
+#
+#   »ç¿ë¹ý : chkmem 
+#   ÁÖ  ÀÇ : chkpid°¡ ÇÊ¿äÇÔ
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/chkmem.tmp ]; then rm $TOOL/tmp/chkmem.tmp; fi
+
+onstat -g ses | grep -v Version | grep -v '^$' | grep -v RSAM | grep -v memory | nawk -F ' ' '{
+{ print $1, $2, $4, $7, $8 }
+}' > $TOOL/tmp/chkmem.tmp
+
+export total=0
+export used=0
+
+echo
+echo 'Total Memory ÇÕ»ê Áß...'
+
+for i in `cat $TOOL/tmp/chkmem.tmp | nawk -F ' ' '{
+                                     { print $4 }
+                                     }'`
+do
+	export total=`expr $total + $i`
+done
+
+echo ' Used Memory ÇÕ»ê Áß...'
+
+for i in `cat $TOOL/tmp/chkmem.tmp | nawk -F ' ' '{
+                                     { print $5 }
+                                     }'`
+do
+	export used=`expr $used + $i`
+done
+
+echo '----------------------------------------------------------------------------------------'
+echo '[5mSession ID          User Name     Total Mem      Used Mem  Process Information          [0m'
+echo '----------------------------------------------------------------------------------------'
+
+cat $TOOL/tmp/chkmem.tmp | nawk -F ' ' '{
+{ 
+   totalorg=$4;
+   totalsize="";
+   while ( int(totalorg / 1000 * 1000) > 0 )
+   {
+      totaltemp=totalsize;
+      if ( totalorg - int(totalorg / 1000) * 1000 == 0 && int(totalorg / 1000) > 0)
+         totalsize="000";
+      else if ( totalorg - int(totalorg / 1000) * 1000 < 10 && int(totalorg / 1000) > 0)
+         totalsize="00"(totalorg - int(totalorg / 1000) * 1000);
+      else if ( totalorg - int(totalorg / 1000) * 1000 < 100 && int(totalorg / 1000) > 0)
+         totalsize="0"(totalorg - int(totalorg / 1000) * 1000);
+      else totalsize=(totalorg - int(totalorg / 1000) * 1000);
+
+      if ( totalorg != $4 ) totalsize = totalsize","totaltemp;
+      totalorg = int(totalorg / 1000);
+
+   }
+   if ( totalsize == "" ) totalsize=0;
+   
+   usedorg=$5;
+   usedsize="";
+   while ( int(usedorg / 1000 * 1000) > 0 )
+   {
+      usedtemp=usedsize;
+      if ( usedorg - int(usedorg / 1000) * 1000 == 0 && int(usedorg / 1000) > 0)
+         usedsize="000";
+      else if ( usedorg - int(usedorg / 1000) * 1000 < 10 && int(usedorg / 1000) > 0)
+         usedsize="00"(usedorg - int(usedorg / 1000) * 1000);
+      else if ( usedorg - int(usedorg / 1000) * 1000 < 100 && int(usedorg / 1000) > 0)
+         usedsize="0"(usedorg - int(usedorg / 1000) * 1000);
+      else usedsize=(usedorg - int(usedorg / 1000) * 1000);
+
+      if ( usedorg != $5 ) usedsize = usedsize","usedtemp;
+      usedorg = int(usedorg / 1000);
+
+   }
+   if ( usedsize == "" ) usedsize=0;
+   
+   printf("%10d %18s %13s %13s  ", $1, $2, totalsize, usedsize);
+   if ( $3 < 1 ) printf("%7d\n", $3)
+	else if (system("chkpid "$3" "$1"")) print "";
+}
+}'
+
+echo '----------------------------------------------------------------------------------------'
+echo 'Total Memory : '`prtnum $total`'          Used Memory : '`prtnum $used`
+echo '----------------------------------------------------------------------------------------'
+
+if [ -f $TOOL/tmp/chkmem.tmp ]; then rm $TOOL/tmp/chkmem.tmp; fi
