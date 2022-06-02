@@ -1,1 +1,1 @@
-git commit -m "close #21 Session 사용 메모리 보기"
+git commit -m "close #22 chksql로 생성한 mon.out 파일 내용을 정리"

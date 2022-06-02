@@ -1,0 +1,41 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   chkmon : chksql로 생성한 mon.out 파일 내용을 정리하는 Shell
+#
+#   작성자 : 바니                 작성일자 : 2003년
+#                                 최종수정 : 2003년
+#
+#   사용법 : chkmon
+#
+####################################################################
+
+echo
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/chkmon.tmp ]; then rm $TOOL/tmp/chkmon.tmp
+fi
+
+if [ -f mon.out ]
+then
+
+cp mon.out $TOOL/tmp/chkmon.tmp
+echo '1,$g/Sess  SQL/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/Session이/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/Blocked/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/9.03/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/statement/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/Informix/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/Id    Stmt type/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/요일/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$g/-------------------------------------/d\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+echo '1,$s/?/" "/g\nw\nq' | ed $TOOL/tmp/chkmon.tmp > /dev/null
+
+cat $TOOL/tmp/chkmon.tmp
+
+else
+
+echo 'mon.out이 없습니다.'
+
+fi

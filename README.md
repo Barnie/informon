@@ -1,5 +1,5 @@
 # informon
-informix monitoring tool
+Informix Monitoring/Management Tools
 
 ## ./js
 JavaScripts
