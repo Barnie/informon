@@ -42,7 +42,7 @@ if [ -f $TempFile3 ]; then rm $TempFile3; fi
 if [ ! "$2" ]
 then
 	if [ ! "$DBNAME" ]
-	then export dbname="ksnet"
+	then export dbname="dbname"
 	else export dbname=$DBNAME
 	fi
 else export dbname=$2
