@@ -1,0 +1,88 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chkopn2 : ÇØ´ç TableÀ» Open ÇÏ°í ÀÖ´Â SessionÀ» º¸¿©ÁÖ´Â ShellÀÔ´Ï´Ù
+#                                 Ç¥ÁØ¹öÀü : v0.2
+#
+#   »ç¿ë¹ý : chkopn2 Table¸í
+#
+#########################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+echo
+
+if [ ! "$1" ]
+then
+
+	echo '»ç¿ë¹ý : chkopn2 Table¸í'
+
+else
+
+	dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+		set isolation to dirty read;
+		unload to $TempFile1 delimiter '|'
+		select c.cbl_sessionid, s.username, s.pid, 
+		       decode(s.ttyin, "", "-", s.ttyin) ttyin 
+		  from sysconblock c, sysscblst s
+		 where ( lower(c.cbl_stmt) like '% $1%'
+		    or lower(c.cbl_stmt) like '%$1 %' )
+		   and c.cbl_sessionid = s.sid
+			and c.cbl_sessionid <> DBINFO('sessionid')
+		 order by 1 desc;
+!
+
+	if [ `cat $TempFile1 | wc -l` -ge 1 ]
+	then
+
+		echo '-----------------------------------------------------------------'
+		echo '[36;43mSession ID  User Name   Terminal    Process Information          [0m'
+		echo '-----------------------------------------------------------------'
+
+		cat $TempFile1 | $CAWK -F '|' '{
+			{ 
+			   printf("%10d  %-10s  %-10s  ", $1, $2, $4); 
+				if ($3 > -1 )
+			   	system("echo `UNIX95= ps -eo pid,comm | grep \""$3" \"`");
+				else
+					printf("Unknown Process : ¿ÜºÎÁ¢¼Ó °¡´É¼º ÀÖÀ½\n");
+			}
+		}'
+
+		echo '-----------------------------------------------------------------'
+
+	else
+
+		echo $1' Å×ÀÌºíÀ» »ç¿ëÇÏ´Â SessionÀÌ ¾ø½À´Ï´Ù'
+
+	fi
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi

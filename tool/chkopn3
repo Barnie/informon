@@ -1,0 +1,55 @@
+#!/bin/ksh
+
+export TOOL=$HOME/tool
+
+if [ ! "$1" ]
+then
+
+echo '»ç¿ë¹ý : chkopn3 Table¸í'
+
+else
+
+if [ -f $TOOL/tmp/chkopn3.tmp ]; then rm $TOOL/tmp/chkopn3.tmp
+fi
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chkopn3.tmp delimiter '|'
+select c.cbl_sessionid, s.username, s.pid, 
+       decode(s.ttyin, "", "-", s.ttyin) ttyin 
+  from sysconblock c, sysscblst s
+ where lower(c.cbl_stmt) like '%$1%'
+   and c.cbl_sessionid = s.sid
+ order by 1 desc;
+!
+
+date 
+
+if [ `cat $TOOL/tmp/chkopn3.tmp | wc -l` -gt 1 ]
+then
+
+echo '-------------------------------------------------------' 
+echo '[5mSession ID  User Name   Terminal    Process Information[0m'
+echo '-------------------------------------------------------'
+
+cat $TOOL/tmp/chkopn3.tmp | nawk -F '|' '{
+{ 
+   printf("[5m%10d[0m  %-10s  %-10s  ", $1, $2, $4); 
+   system("echo `ps -eo \"pid comm\" | grep " $3 "`");
+   system("onstat -g sql "$1" | grep -v Dynamic | grep -v ISAM | grep -v Database | grep -v "$1" | grep -v \"^$\" ");
+}
+}'
+
+
+else
+
+echo $1' Å×ÀÌºíÀ» »ç¿ëÇÏ´Â SessionÀÌ ¾ø½À´Ï´Ù' 
+
+fi
+
+echo '-------------------------------------------------------' 
+
+fi
+
+if [ -f $TOOL/tmp/chkopn3.tmp ]; then rm $TOOL/tmp/chkopn3.tmp
+fi

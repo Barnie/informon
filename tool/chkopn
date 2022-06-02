@@ -1,0 +1,227 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chkopn : TableÀ» Open ÇÏ°í ÀÖ´Â SessionÀ» º¸¿©ÁÖ´Â ShellÀÔ´Ï´Ù
+#                                 Ç¥ÁØ¹öÀü : v0.2
+#
+#   »ç¿ë¹ý : chkopn [Table¸í]
+#
+#########################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}
+export TempFile3=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp3_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+if [ -f $TempFile3 ]; then rm $TempFile3; fi
+#########################################################################
+
+
+# DB¸í ¼³Á¤ #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="ksnet"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+echo
+
+if [ ! "$1" ]
+then
+
+	dbaccess $dbname <<! 1> /dev/null 2> /dev/null
+		set isolation to dirty read;
+		unload to $TempFile1 delimiter ' '
+		select lower(hex(partnum)) 
+		  from systables
+		 where tabname = 'systables' 
+!
+
+	if [ -f $TempFile1 ]
+	then
+		export systables=`cat $TempFile1`
+		rm $TempFile1
+	else
+		export systables='0x00000000'
+	fi
+
+	onstat -g opn | egrep -v 'Informix' | egrep -v 'tid' | egrep -v '^$' | egrep -v $systables | 
+		$CAWK -F ' ' '{
+			{ print $6 }
+		}' > $TempFile2
+
+	if [ -f $TempFile2 ]
+	then
+		if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+		clear
+		export lines=`cat $TempFile2 | wc -l`
+		echo '--------------------------------------'
+		echo '[36;43m    Object Open Á¤º¸ Áßº¹ Á¦°Å ÀÛ¾÷   [0m'
+		echo '--------------------------------------'
+		printf '%10d' $lines; echo 'Line : ÀÛ¾÷ÁøÇàÀ² :   0.00%'
+		echo '--------------------------------------'
+
+		while true
+		do
+			if [ `cat $TempFile2 | wc -l` -gt 0 ]
+			then
+				head -1 $TempFile2 >> $TempFile1
+				echo '1,$g/^'`head -1 $TempFile2`'/d\nw\nq' | ed $TempFile2 > /dev/null
+				printf '[4;32H' 
+				echo $lines' '`cat $TempFile2 | wc -l` | 
+					$CAWK -F ' ' '{ printf("%6.2f%", 100 - $2 * 100 / $1); }'
+			else
+				break
+			fi
+		done
+		if [ -f $TempFile2 ]; then rm $TempFile2; fi
+		echo '[6;1H ÃÑ '`cat $TempFile1 | wc -l`'°³ÀÇ Object°¡ Open µÇ¾ú½À´Ï´Ù'
+
+		export cnt=1
+		for i in `cat $TempFile1`
+		do
+			if [ $cnt -gt 1 ]; then echo ',\c' >> $TempFile2; fi
+			export tblsnum="16#"`echo $i | $CAWK '{print substr($1, 3, length($1)-2)}'`
+			typeset -i10 tblsnum
+			echo $tblsnum'\c' >> $TempFile2
+			export cnt=`expr $cnt + 1`
+		done
+
+		rm $TempFile1
+
+		dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+			set isolation to dirty read;
+			unload to $TempFile1 delimiter ' '
+			select {+INDEX(systabnames systabs_pnix)}
+			       dbsname, tabname 
+			  from systabnames
+			 where partnum IN (`cat $TempFile2`);
+!
+		rm $TempFile2
+
+		echo '--------------------------------------'
+		echo '[36;43mDatabase Name   Object Name           [0m'
+		echo '--------------------------------------'
+		cat $TempFile1 | $CAWK -F ' ' '{
+			{ printf("%13s : %-30s\n", $1, $2); }
+		}'
+		echo '--------------------------------------'
+
+	else
+
+		echo '°á°ú°¡ ¾ø½À´Ï´Ù.'
+
+	fi
+
+
+else
+
+
+	dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+		set isolation to dirty read;
+		unload to $TempFile1 delimiter ' '
+		select lower(hex(partnum)) from systabnames
+		 where dbsname = '$dbname'
+		   and tabname = '$1' 
+!
+
+	if [ -f $TempFile1 ]
+	then
+		export partnum=`cat $TempFile1`
+		rm $TempFile1
+	else
+		export partnum='0x00000000'
+	fi
+
+	onstat -g opn | egrep -v 'Informix' | egrep -v 'tid' | egrep -v '^$' | grep $partnum | 
+		$CAWK -F ' ' '{
+			{ print $1 }
+		}' > $TempFile1
+
+
+	if [ -f $TempFile1 ]
+	then
+
+		for i in `cat $TempFile1`
+		do
+			dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+				set isolation to dirty read;
+				unload to $TempFile2 delimiter ' '
+				select c.cbl_sessionid, s.username, s.pid,
+				       decode(s.ttyin, "", "-", s.ttyin) ttyin
+				  from sysconblock c, sysscblst s, sysrstcb r
+				 where r.tid = $i
+				   and c.cbl_sessionid = s.sid
+				   and s.sid = r.sid;
+!
+			if [ -f $TempFile2 ]; then
+				cat $TempFile2 >> $TempFile3
+				rm $TempFile2
+			fi
+		done
+
+		rm $TempFile1
+
+		if [ -f $TempFile3 ]
+		then
+
+			echo '-------------------------------------------------------'
+			echo '[5mSession ID  User Name   Terminal    Process Information[0m'
+			echo '-------------------------------------------------------'
+
+			cat $TempFile3 | $CAWK -F ' ' '{
+				{
+					printf("%10d  %-10s  %-10s  ", $1, $2, $4);
+	            if ($3 > -1 )
+  	            	system("echo `UNIX95= ps -eo pid,comm | grep \""$3" \"`"); 
+					else
+  	            	printf("Unknown Process : ¿ÜºÎÁ¢¼Ó °¡´É¼º ÀÖÀ½\n");
+				}
+			}'
+
+			echo '-------------------------------------------------------'
+
+		else
+			echo '°á°ú°¡ ¾ø½À´Ï´Ù.'
+		fi
+
+	else
+
+		echo '°á°ú°¡ ¾ø½À´Ï´Ù.'
+
+	fi
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+if [ -f $TempFile3 ]; then rm $TempFile3; fi
