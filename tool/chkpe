@@ -1,0 +1,29 @@
+#!/bin/ksh
+
+####################################################################         
+# 
+#   chkpe  : Chunk 사용 내용을 보는 Shell입니다
+#
+#   사용법 : chkpe (주요DB명)
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ ! "$1" ]
+then export dbname='ksnet'
+else export dbname=$1
+fi
+
+oncheck -pe > oncheck-pe.txt
+
+echo '1,$g//d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/RESERVED/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/CHUNK FREE LIST PAGE/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/TBLSPACE TBLSPACE/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/onpload:/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/sysmaster:/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/sysutils:/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/DATABASE TBLSPACE/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/LOG Pages/d\nw\nq' | ed oncheck-pe.txt > /dev/null
+echo '1,$g/'$dbname'/d\nw\nq' | ed oncheck-pe.txt > /dev/null
