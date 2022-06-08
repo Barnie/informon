@@ -1,0 +1,54 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   chkpfl : DB Profile 정보 일부를 보여주는 Shell입니다
+#
+#   작성자 : 바니                 작성일자 : 2003년
+#                                 최종수정 : 2008년 09월 08일
+#
+#   사용법 : chkpfl [simple]
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+
+if [ -f $TOOL/tmp/chkpfl.tmp ]; then rm $TOOL/tmp/chkpfl.tmp
+fi
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chkpfl.tmp delimiter ' '
+select name, value
+  from sysprofile
+ where name in ('ovlock', 'ovuser', 'ovtrans');
+!
+
+if [ x$1 = 'xsimple' ]
+then
+
+	cat $TOOL/tmp/chkpfl.tmp | $CAWK -F ' ' '{ printf("%s", $2); }'
+
+else
+
+	echo 
+	echo '-----------------------'
+
+	cat $TOOL/tmp/chkpfl.tmp | $CAWK -F ' ' '{
+	{
+  		printf("%7s %15d\n", $1, $2);
+	}
+}'
+	echo '-----------------------'
+
+fi
+
+if [ -f $TOOL/tmp/chkpfl.tmp ]; then rm $TOOL/tmp/chkpfl.tmp
+fi
