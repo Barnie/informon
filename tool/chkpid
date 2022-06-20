@@ -1,0 +1,66 @@
+#!/bin/ksh
+export LANG=C
+
+####################################################################         
+# 
+#   chkpid : pid·Î Process Ã£´Â Shell ÀÔ´Ï´Ù.
+#
+#                                 Ç¥ÁØ¹öÀü : v0.2 2017
+#
+#   »ç¿ë¹ý : chkpid pid [UnknownÀÇ ´ëÃ¼ÀÔ·Â]
+#
+####################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+#echo '[0m\c'  ####  ´Ù¸¥ ½©¿¡¼­ÀÇ »ç¿ë ½Ã ESC Sequence±îÁö Ãâ·ÂµÇ¹Ç·Î ÀÌºÎºÐÀº ¸·ÀÚ
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then
+	echo 'Pid¸¦ ÀÔ·ÂÇØ ÁÖ¼¼¿ä'
+else
+	UNIX95= ps -eo pid,comm,tty | $CAWK -F ' ' '{
+                            { if ( $1 == '$1' ) printf("%7d %s %s\n", $1, $2, $3); }
+                            }' > $TempFile1
+	if [ `cat $TempFile1 | wc -l` -gt 0 ]
+	then
+		cat $TempFile1
+	else
+		if [ ! "$2" ]
+		then echo '      ? Unknown Process'
+		else 
+			onstat -g ses | grep ^$2" " | $CAWK -F ' ' '{ { printf("      ? %s %s\n", $2, $3)} }' > $TempFile1
+			if [ `cat $TempFile1 | wc -l` -gt 0 ]
+			then cat $TempFile1
+			else echo "      ? Already Finished"
+			fi
+		fi
+	fi
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
