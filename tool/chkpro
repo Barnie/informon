@@ -1,0 +1,81 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chkpro : ÇØ´ç Process°¡ ´øÁø SQL º¸±â ( 1ÃÊ ´ÜÀ§ )
+#
+#                                 Ç¥ÁØ¹öÀü : v0.2
+#
+#   »ç¿ë¹ý : chkpro Process¸í
+#
+#########################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+#########################################################################
+
+
+echo '[0m\c'
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then 
+	echo '»ç¿ë¹ý : chkpro Process¸í'
+else
+
+	while true
+	do
+
+		echo '==============================================================='
+		date
+
+		ps -ef | grep $1 | egrep -v grep | nawk -F ' ' '{
+		{ print $2; }
+		}' | sort -n -r > $TempFile1
+
+		for i in `cat $TempFile1`
+		do
+			export sid=`onstat -g ses | grep $i | nawk -F ' ' '{ { print $1 } }'` 
+			export userid=`onstat -g ses | grep $i | nawk -F ' ' '{ { print $2 } }'` 
+			if [ $sid ]
+			then 
+				echo '---------------------------------------------------------------'
+				echo $sid' [' $userid ']'
+				echo '---------------------------------------------------------------'
+				onstat -g sql $sid > $TempFile2
+				export cnt=`cat $TempFile2 | wc -l`
+  				tail -`expr $cnt - 7` $TempFile2
+				echo '---------------------------------------------------------------'
+			fi
+		done
+
+		sleep 1
+	done
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
