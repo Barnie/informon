@@ -1,1 +1,1 @@
-git commit -m "close #27 지정한 Process가 수행 요청한 SQL 보기 ( 1초 단위 )"
+git commit -m "close #28 Memory Segment의 사용현황"

@@ -1,0 +1,116 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   chkseg : Memory SegmentÀÇ »ç¿ëÇöÈ²À» º¸¿©ÁÖ´Â ShellÀÔ´Ï´Ù
+#
+#                                 Ç¥ÁØ¹öÀü : v0.2
+#
+#   »ç¿ë¹ý : chkseg
+#   ¿äÇÔ¼ö : prtnum
+#
+#########################################################################
+
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select case when seg_class = 1 then 'Resident'
+            when seg_class = 2 then 'Virtual'
+            when seg_class = 3 then 'Message'
+                               else 'Unknown'
+       end, sum(seg_size)::int8, sum(seg_blkfree)::int8*4096, sum(1)::int8, seg_class
+  from syssegments
+ group by seg_class
+ order by 5;
+!
+
+echo 
+echo '-------------------------------------------------------'
+echo '[32;43mSegment class           Segment size          free size[0m'
+echo '-------------------------------------------------------'
+
+cat $TempFile1 | $CAWK -F ' ' '{
+{
+   segorg=$2;
+   segsize="";
+   while ( int(segorg / 1000 * 1000) > 0 )
+   {
+      segtemp=segsize;
+      if ( segorg - int(segorg / 1000) * 1000 == 0 && int(segorg / 1000) > 0) 
+         segsize="000";
+      else if ( segorg - int(segorg / 1000) * 1000 < 10 && int(segorg / 1000) > 0)
+         segsize="00"(segorg - int(segorg / 1000) * 1000);
+      else if ( segorg - int(segorg / 1000) * 1000 < 100 && int(segorg / 1000) > 0)
+         segsize="0"(segorg - int(segorg / 1000) * 1000);
+      else segsize=(segorg - int(segorg / 1000) * 1000);
+
+      if ( segorg != $2 ) segsize = segsize","segtemp;
+      segorg = int(segorg / 1000);
+   }
+   if ( segsize == "" ) segsize=0;
+
+   freeorg=$3;
+   freesize="";
+   while ( int(freeorg / 1000 * 1000) > 0 )
+   {
+      freetemp=freesize;
+      if ( freeorg - int(freeorg / 1000) * 1000 == 0 && int(freeorg / 1000) > 0) 
+         freesize="000";
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 10 && int(freeorg / 1000) > 0)
+         freesize="00"(freeorg - int(freeorg / 1000) * 1000);
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 100 && int(freeorg / 1000) > 0)
+         freesize="0"(freeorg - int(freeorg / 1000) * 1000);
+      else freesize=(freeorg - int(freeorg / 1000) * 1000);
+
+      if ( freeorg != $3 ) freesize = freesize","freetemp;
+      freeorg = int(freeorg / 1000);
+   }
+   if ( freesize == "" ) freesize=0;
+
+   printf("%-9s[%2s]       %16s   %16s\n", $1, $4, segsize, freesize);
+}
+}'
+echo '-------------------------------------------------------'
+
+export sum=0
+for i in `cat $TempFile1 | $CAWK -F ' ' '{
+          { print $2 }
+          }'`
+do
+export sum=`expr $sum + $i`
+done
+
+printf "Total Segment Size : %15s\n" `prtnum $sum`
+echo '-------------------------------------------------------'
+
+if [ -f $TempFile1 ]; then rm $TempFile1
+fi
