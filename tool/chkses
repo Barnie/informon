@@ -1,0 +1,165 @@
+#!/bin/ksh
+#export LC_ALL=ko_KR.UTF-8
+#export LANG=ko_KR.UTF-8
+export LANG=C
+
+####################################################################
+#
+#   chkses : IO ºÎÇÏ°¡ ½ÉÇÑ SessionÀ» º¸¿©ÁÖ´Â ShellÀÔ´Ï´Ù
+#
+#                                 Ç¥ÁØ¹öÀü : v0.3
+#
+#   »ç¿ë¹ý : chkses [°Ë»ç °£°Ý(ÃÊ)] [Session °¹¼ö] [Log »èÁ¦(y)]
+#            ÀÔ·ÂÀÌ ¾øÀ» ½Ã¿£ 10ÃÊ °£°Ý
+#   ¿äÆÄÀÏ : $TOOL/prtses
+#            $TOOL/load
+#
+#   Âü  °í : OLTP ¾÷¹«¿¡´Â Àû´çÇÏÁö ¾ÊÀ½
+#
+####################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB¸í ¼³Á¤ #############################################################
+if [ ! "$DBNAME" ]
+then export dbname="dbname"
+else export dbname=$DBNAME
+fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+
+if [ -f informon_chkses.unl ]
+then 
+	echo 'informon_chkses.unlÀÌ Á¸Àç ÇÕ´Ï´Ù. Áö¿ì°í ´Ù½Ã ½ÃµµÇÏ¼¼¿ä'
+else
+
+	if [ $INFORMIXSERVER = 'svr01_tcp' ] || [ $INFORMIXSERVER = 'svr02_tcp' ] ||
+	   [ $INFORMIXSERVER = 'svr03_tcp' ] || [ $INFORMIXSERVER = 'svrfo' ]
+	then export testdbspace='in testdbs'
+   else export testdbspace=''
+	fi
+
+	dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+		drop table informon_chkses;
+
+		create table informon_chkses
+		( chk_time char(14),
+		  sid int8,
+		  nread decimal(16,0),
+		  nwrite decimal(16,0)
+		) $testdbspace  extent size 1000 next size 1000 lock mode page;
+
+		create index informon_chkses_idx01 on informon_chkses
+		( sid ) $testdbspace;
+!
+
+	if [ ! "$1" ]
+	then export interval=10
+	else export interval=$1
+	fi
+
+	if [ ! "$2" ]
+	then export noofses=10
+	else export noofses=$2
+	fi
+
+	export chk_time=`date +"%Y%m%d%H%M%S"`
+
+	onstat -u | egrep -v concurrent | egrep -v ^$ | egrep -v Version | egrep -v Userthreads | egrep -v address | $CAWK -F ' ' '{
+{ printf("%d|%d|%d|%d|\n", '$chk_time', $3, $9, $10); }
+}' > informon_chkses.unl
+
+	load informon_chkses $dbname > /dev/null
+	rm informon_chkses.unl
+
+	echo $interval'ÃÊ°£ ±â´Ù¸®¼¼¿ä ^^'
+	while [ $interval -gt 0 ]
+	do
+		sleep 1
+		echo 'o\c'
+		export interval=`expr $interval - 1`
+	done
+
+	export chk_time=`date +"%Y%m%d%H%M%S"`
+
+	onstat -u | egrep -v concurrent | egrep -v ^$ | egrep -v Version | egrep -v Userthreads | egrep -v address | $CAWK -F ' ' '{
+{ printf("%d|%d|%d|%d|\n", '$chk_time', $3, $9, $10); }
+}' > informon_chkses.unl
+
+	load informon_chkses $dbname > /dev/null
+	rm informon_chkses.unl
+
+	export vps=`onstat -g glo | grep '^ total' | $CAWK -F ' ' '{
+		{ print $2 }
+		}'`
+	echo
+	echo 'Virtual Processor´Â '$vps'°³ ÀÔ´Ï´Ù.'
+
+dbaccess $dbname <<! 1> /dev/null 2> /dev/null
+unload to $TempFile1 delimiter ' '
+select first $noofses
+       sid, (max(nread) - min(nread)) nread, (max(nwrite) - min(nwrite)) nwrite,
+       ((max(nread) - min(nread)) + (max(nwrite) - min(nwrite))) nio
+  from informon_chkses
+ where sid > $vps
+ group by sid
+ order by 4 desc;
+!
+
+	echo
+	echo 'I/O°¡ ¸¹Àº Session ÀÔ´Ï´Ù. ( '`date`' )'
+	echo '[36m--------------------------------------------------------------------------------------------------------------------------[0m'
+	echo '[31;43m  nRead nWrite  Sess ID  User Name  WaitOn  Tx_Cond    Type     IO   Thread      PID Process Name  TTY                    [0m'
+	echo '[36m--------------------------------------------------------------------------------------------------------------------------[0m'
+	cat $TempFile1 | $CAWK -F ' ' '
+	{
+		printf( "[32m" )
+		printf("%7d%7d ", $2, $3);
+  		system("prtses "$1"");
+		printf( "[0m" )
+  		system("prtthr "$1"");
+		print "[0m--------------------------------------------------------------------------------------------------------------------------[0m"
+	}
+'
+
+	if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+fi
+
+if [ ! "$3" ]
+then 
+	echo 'Load Log¸¦ Áö¿ì½Ã°Ú½À´Ï±î? \c'
+	read yn
+else 
+	export yn=$3
+fi
+
+if [ $yn = 'y' ]
+	then rm informon_chkses.log
+fi
