@@ -1,0 +1,135 @@
+#!/bin/ksh
+#export LC_ALL=ko_KR.UTF-8
+#export LANG=ko_KR.UTF-8
+
+####################################################################
+#
+#   chkses : IO 부하가 심한 Session을 Table에 저장하고, Process별로 File에 저장하는 Shell입니다
+#
+#                                 표준버전 : v0.3
+#
+#   사용법 : chkses [검사 간격(초)] [Session 갯수]
+#            입력이 없을 시엔 10초 간격
+#   요파일 : $TOOL/prtses_2013
+#            $TOOL/getsql_2013
+#            $TOOL/chkpid_2013
+#            $TOOL/load
+#
+#   참  고 : OLTP 업무에는 적당하지 않음
+#
+####################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F '/' '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f ${TempFile2}.unl ]; then rm ${TempFile2}.unl; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$DBNAME" ]
+then export dbname="dbname"
+else export dbname=$DBNAME
+fi
+#########################################################################
+
+################### Default #############################################
+
+
+if [ -f chkses_2013_temp.unl ]
+then 
+	echo 'chkses_2013_temp.unl이 존재 합니다. 지우고 다시 시도하세요'
+else
+
+	dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+		truncate table chkses_2013_temp;
+!
+
+	if [ ! "$1" ]
+	then export interval=10
+	else export interval=$1
+	fi
+
+	if [ ! "$2" ]
+	then export noofses=10
+	else export noofses=$2
+	fi
+
+	export chk_time=`date +"%Y%m%d%H%M%S"`
+
+	onstat -u | egrep -v concurrent | egrep -v ^$ | egrep -v Version | egrep -v Userthreads | egrep -v address | $CAWK -F ' ' '{
+{ printf("%d|%d|%d|%d|\n", '$chk_time', $3, $9, $10); }
+}' > chkses_2013_temp.unl
+
+	load chkses_2013_temp $dbname 1> /dev/null 2> /dev/null
+	rm chkses_2013_temp.unl
+
+	sleep $interval
+
+	export chk_time=`date +"%Y%m%d%H%M%S"`
+
+	onstat -u | egrep -v concurrent | egrep -v ^$ | egrep -v Version | egrep -v Userthreads | egrep -v address | $CAWK -F ' ' '{
+{ printf("%d|%d|%d|%d|\n", '$chk_time', $3, $9, $10); }
+}' > chkses_2013_temp.unl
+
+	load chkses_2013_temp $dbname 1> /dev/null 2> /dev/null
+	rm chkses_2013_temp.unl
+
+	export vps=`onstat -g glo | grep '^ total' | $CAWK -F ' ' '{
+		{ print $2 }
+		}'`
+
+dbaccess $dbname <<! 1> /dev/null 2> /dev/null
+unload to $TempFile1 delimiter '|'
+select first $noofses
+       max(chk_time), 
+       sid, 
+       (max(nread) - min(nread)) nread, 
+       (max(nwrite) - min(nwrite)) nwrite,
+       ((max(nread) - min(nread)) + (max(nwrite) - min(nwrite))) nio
+  from chkses_2013_temp
+ where sid > $vps
+ group by sid
+ order by 5 desc;
+!
+
+	#echo 'chkTime  nRead nWrite  Sess ID  User Name  WaitOn  Tx_Cond    Type     IO   Thread      PID Process Name  TTY    '
+	cat $TempFile1 | $CAWK -F '|' '{
+		printf("%14s|%d|%d|", $1, $3, $4);
+		system("prtses_2013 "$2"");
+}' > ${TempFile2}.unl
+
+	cat ${TempFile2}.unl | $CAWK -F '|' '
+	{
+		system( "getsql_2013 "$4" >> chkses_"$12".log" );
+	}
+'
+
+	load ${TempFile2} dbname "|" chkses_2013_data
+
+	if [ -f $TempFile1 ]; then rm $TempFile1; fi
+	if [ -f ${TempFile2}.unl ]; then rm ${TempFile2}.unl; fi
+
+fi
+
+rm chkses_2013_temp.log
