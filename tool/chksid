@@ -1,0 +1,30 @@
+#!/bin/ksh
+
+####################################################################         
+# 
+#   chksid : sid로 Process ID 찾는 Shell 입니다.
+#
+#   사용법 : chksid 
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/chksid.tmp ]; then rm $TOOL/tmp/chksid.tmp; fi
+
+if [ ! "$1" ]
+then
+	echo 'Sid를 입력해 주세요'
+else
+	onstat -g ses | grep "^"$1" " | awk -F ' ' '{
+                                   { print $4 }
+                                   }' > $TOOL/tmp/chksid.tmp
+	if [ `cat $TOOL/tmp/chksid.tmp | wc -l` -gt 0 ]
+	then
+		printf "%10d\n" `cat $TOOL/tmp/chksid.tmp`
+	else
+		echo '-1'
+	fi
+fi
+
+if [ -f $TOOL/tmp/chksid.tmp ]; then rm $TOOL/tmp/chksid.tmp; fi
