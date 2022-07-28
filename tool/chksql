@@ -1,0 +1,87 @@
+#!/bin/ksh
+
+####################################################################         
+# 
+#   chksql : 현재 돌고 있는 Session 관련 정보를 상세히 보여줍니다
+#
+#   사용법 : chksql [검사 간격 - 초단위]
+#
+####################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+if [ ! "$1" ]
+then export timeslice=1
+else export timeslice=$1
+fi
+
+
+while true
+do
+
+	onstat -u | egrep -v 'P--D|P--F|P--B|Y--P|active|Dynamic|Userthreads|sessid|^$' | $CAWK -F ' ' '{
+	{ if ($2 != "---P---" && $4 != "informix") print $3; }
+	}' > $TempFile1
+
+	echo '====================================='
+	date
+	echo '-------------------------------------'
+	echo
+	
+	export minus=0
+	for i in `cat $TempFile1`
+	do
+		export pid=`onstat -g ses | $CAWK -F ' ' '{ { if ( $1 == '$i' ) print $4; } }'`
+		if [ $pid <> "" ]
+		then
+			echo '  Session ID : '$i
+			echo '----------------------------'
+			onstat -g sql $i
+			echo '----------------------------'
+			echo '  Process ID : '$pid
+			echo '----------------------------'
+			ps -ef | grep " "$pid" " | grep -v 'grep  '$pid
+			echo '-------------------------------------'
+			echo
+		else
+			export minus=`expr $minus + 1`
+		fi
+	done
+
+	echo '====================================='
+	export cnt=`wc -l $TempFile1 | $CAWK -F ' ' '{
+	{ print $1}
+	}'`
+	echo `expr $cnt - $minus`'개의 Session이 돌아가는 중입니다'
+	echo
+	echo
+	echo
+
+	sleep $timeslice
+
+	if [ -f $TempFile1 ]; then rm $TempFile1
+	fi
+
+done

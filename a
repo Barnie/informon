@@ -1,1 +1,1 @@
-git commit -m "close #31 Session id로 Process ID 찾기"
+git commit -m "close #32 현재 존재하는 Session 관련 정보 조회"
