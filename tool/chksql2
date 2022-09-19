@@ -1,0 +1,137 @@
+#!/bin/ksh
+
+####################################################################         
+# 
+#   chksql2 : ÇöÀç µ¹°í ÀÖ´Â Session °ü·Ã Á¤º¸¸¦ ÇÑÁÙ·Î º¸¿©ÁÝ´Ï´Ù
+#
+#   ÀÛ¼ºÀÚ : ¹Ù´Ï                 ÀÛ¼ºÀÏÀÚ : 2003³â
+#                                 ÃÖÁ¾¼öÁ¤ : 2008³â 10¿ù 02ÀÏ
+#
+#   »ç¿ë¹ý : chksql2
+#   ÁÖ  ÀÇ : chkpid°¡ ÇÊ¿äÇÔ
+#
+####################################################################
+
+# Tool Æú´õ ¼³Á¤ ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OSº° awk ¼³Á¤ #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# ÀÓ½ÃÆÄÀÏ ÃÊ±âÈ­ #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+while true
+do
+
+	clear
+
+	echo '--------------------------------------------------------------------------------------------'
+	date
+	echo '--------------------------------------------------------------------------------------------'
+	echo '[5m Sess ID  User Name  WaitOn  Tx_Cond    Type     IO   Thread      PID Process Name  TTY     [0m'
+	echo '--------------------------------------------------------------------------------------------'
+
+	onstat -u | egrep -v P--D | egrep -v P--F | egrep -v P--B | egrep -v Y--P | egrep -v active | egrep -v Server | egrep -v sessid | egrep -v '^$' | $CAWK -F ' ' '{
+	{ if ( $3 != "" ) printf("%s:%d\n", $2, $3); }
+	}' > $TempFile1
+
+	export cnt=0
+
+	for i in `cat $TempFile1`
+	do
+		export flag1=`echo $i | $CAWK -F ':' '{ { print substr($1,1,1); } }'`
+		export flag3=`echo $i | $CAWK -F ':' '{ { print substr($1,3,1); } }'`
+		export flag4=`echo $i | $CAWK -F ':' '{ { print substr($1,4,1); } }'`
+		export flag5=`echo $i | $CAWK -F ':' '{ { print substr($1,5,1); } }'`
+		export flag7=`echo $i | $CAWK -F ':' '{ { print substr($1,7,1); } }'`
+
+		case "$flag1" in
+			B)  export flagn1='Buffer' ;;
+			C)  export flagn1='ChkPt' ;;
+			G)  export flagn1='LLogBf' ;;
+			L)  export flagn1='Lock' ;;
+			S)  export flagn1='Mutex' ;;
+			T)  export flagn1='Tx' ;;
+			X)  export flagn1='TxClup' ;;
+			Y)  export flagn1='Cond' ;;
+			\-) export flagn1='-' ;;
+			*)  # Unidentified Flag:
+    			 export flagn1='?' ;;
+		esac
+
+		case "$flag3" in
+			A)  export flagn3='DBs_Bkup' ;;
+			B)  export flagn3='Begin' ;;
+			P)  export flagn3='Prepare' ;;
+			X)  export flagn3='XA_Prep' ;;
+			C)  export flagn3='Commit' ;;
+			R)  export flagn3='Abort' ;;
+			H)  export flagn3='H_abort' ;;
+			\-) export flagn3='-' ;;
+			*)  # Unidentified Flag:
+    		    export flagn3='?' ;;
+		esac
+
+		case "$flag4" in
+			P)  export flagn4='Primary' ;;
+			\-) export flagn4='-' ;;
+			*)  # Unidentified Flag:
+    		  	 export flagn4='?' ;;
+		esac
+
+		case "$flag5" in
+			R)  export flagn5='RSAM' ;;
+			X)  export flagn5='CWrite' ;;
+			\-) export flagn5='-' ;;
+			*)  # Unidentified Flag:
+    			 export flagn5='?' ;;
+		esac
+
+		case "$flag7" in
+			B)  export flagn7='BT_Clean' ;;
+			C)  export flagn7='CleanUp' ;;
+			D)  export flagn7='Daemon' ;;
+			F)  export flagn7='Flusher' ;;
+			M)  export flagn7='Monitor' ;;
+			\-) export flagn7='-' ;;
+			*)  # Unidentified Flag:
+    		 	 export flagn7='?' ;;
+		esac
+
+		export ses=`onstat -g ses | grep '^'\`echo $i | $CAWK -F ':' '{ { print $2; } }'\`' '`
+
+		if [ `echo $ses | $CAWK -F ' ' '{ printf("%d", $4) }'` -ne 0 ]
+		then
+			echo $ses | $CAWK -F ' ' '{ 
+				printf("%8d %10s  %6s %8s %7s %6s %8s  ", $1, $2, "'`echo $flagn1`'", "'`echo $flagn3`'", "'`echo $flagn4`'", "'`echo $flagn5`'", "'`echo $flagn7`'"); 
+				if ( $4 < 0 ) print "Unknown Process"
+				else if (system("chkpid "$4" "$1"")) print "";
+			}'
+			export cnt=`expr $cnt + 1`
+		fi
+
+	done
+
+	echo '--------------------------------------------------------------------------------------------'
+	echo $cnt'°³ÀÇ SessionÀÌ µ¹¾Æ°¡´Â ÁßÀÔ´Ï´Ù'
+	sleep 1
+
+done
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi

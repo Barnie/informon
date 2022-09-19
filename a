@@ -1,1 +1,1 @@
-git commit -m "close #32 현재 존재하는 Session 관련 정보 조회"
+git commit -m "close #33 chksql2 : 현재 돌고 있는 Session 관련 정보를 한줄로 보기"
