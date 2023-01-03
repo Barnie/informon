@@ -1,1 +1,1 @@
-git commit -m "close #33 chksql2 : 현재 돌고 있는 Session 관련 정보를 한줄로 보기"
+git commit -m "close #34 chksql_pro : App. 이름으로 해당 Session들의 SQL 정보를 보여주는 Shell"

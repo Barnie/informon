@@ -1,0 +1,50 @@
+#!/bin/ksh 
+
+#########################################################################
+#
+#   chksql_pro : App. 이름으로 해당 Session들의 SQL 정보를 보여주는 Shell 입니다
+#
+#   작성자 : 바니                 작성일자 : 2010년 04월 29일
+#                                 최종수정 : 2010년 04월 29일
+#                                 표준버전 : v0.3
+#
+#   사용법 : chksql_pro App이름
+#
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+	export CAWK=awk
+else
+	export CAWK=nawk
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : chksql_pro [App명] (점검간격(초))'
+
+else
+
+	if [ ! "$2" ]
+	then export chktime=1
+	else export chktime=$2
+	fi
+
+	while true
+	do
+		date
+		for i in `ps -ef | grep $1 | $CAWK -F ' ' '{print $2}'`
+		do
+			onstat -g ses | grep ' '$i' ' | $CAWK -F ' ' '{print $1}' | xargs onstat -g sql
+		done
+		sleep $chktime
+	done
+
+fi
