@@ -1,0 +1,8 @@
+#!/bin/ksh
+
+if [ ! "$1" ]
+then
+	echo "사용법 : chkstm process명"
+else
+	ps -ef | egrep -e $1 | grep -v "grep" | nawk -F " " -f ${HOME}/tool/chkstm.awk
+fi

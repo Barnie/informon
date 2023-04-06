@@ -1,1 +1,1 @@
-git commit -m "close #34 chksql_pro : App. 이름으로 해당 Session들의 SQL 정보를 보여주는 Shell"
+git commit -m "close #35 chkstm : process명으로 실행 중인 SQL Statement 보기"
