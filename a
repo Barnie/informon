@@ -1,1 +1,1 @@
-git commit -m "close #35 chkstm : process명으로 실행 중인 SQL Statement 보기"
+git commit -m "close #36 chktbl : 16진수 Tblsnum에 해당하는 DB Object명을 보여주는 Shell"

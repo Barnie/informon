@@ -1,0 +1,69 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   chktbl : 16진수 Tblsnum에 해당하는 DB Object명을 보여주는 Shell입니다
+#
+#   사용법 : chktbl tblsnum(16진수)
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+echo '[0m\c'
+################### Default #############################################
+
+echo
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : chktbl tblsnum'
+
+else
+
+	export tblsnum="16#"$1
+	typeset -i10 tblsnum
+
+	dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+	set isolation to dirty read;
+	unload to $TempFile1 delimiter ' '
+	select dbsname, tabname from systabnames
+	 where partnum = '$tblsnum';
+!
+
+	cat $TempFile1 | $CAWK -F ' ' '{
+	{ printf("tblsnum [33m'$1'[0m은 [35m%s[0m DB의 [31;43m%s[0m Object입니다.\n", $1, $2); }
+}'
+
+	if [ `cat $TempFile1 | wc -l` -eq 0 ]
+	then
+		echo 'tblsnum(16진수)을 다시 한번 확인해 주세요.'
+	fi
+
+	if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+fi
