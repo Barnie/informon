@@ -1,1 +1,1 @@
-git commit -m "close #36 chktbl : 16진수 Tblsnum에 해당하는 DB Object명을 보여주는 Shell"
+git commit -m "close #37 chkuio : 현재 세션들의 IO 누적치 보기"

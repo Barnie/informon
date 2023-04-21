@@ -1,0 +1,30 @@
+#!/bin/ksh
+
+############################################################
+#   현재 세션들의 IO 누적치 보기
+############################################################
+
+onstat -u | nawk -F ' ' '
+BEGIN {
+	nread = 0;
+	nwrite = 0;
+	start = 0;
+}
+{
+	if ( length( $1 ) < 15 ) {
+		start = 0;
+	}
+
+	if ( start == 1 ) {
+		nread += $9;
+		nwrite += $10;
+	}
+
+	if ( $1 == "address" ) {
+		start = 1;
+	}
+}
+END {
+	printf( "nread: %d / nwrite: %d\n", nread, nwrite );
+}
+'
