@@ -1,1 +1,1 @@
-git commit -m "close #38 Security alert 대응"
+git commit -m "close #39 chkupt : 지정된 DB의 통계정보 갱신 정보를 보는 Shell"

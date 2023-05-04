@@ -1,0 +1,108 @@
+#!/bin/ksh
+
+#########################################################################
+# 
+#   chkupt : 지정된 DB의 통계정보 갱신 정보를 보는 Shell입니다
+#
+#   작성자 : 바니
+#
+#   사용법 : chkupt (DB명) (Sort 내용: 1-이름, 2-날짜, 3-모드) (all)
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$1" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$1
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+if [ ! "$2" ]
+	then export sortcol="1"
+	else export sortcol=$2
+fi
+
+if [ ! "$3" ]
+then
+
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select distinct 
+       tabname, b.constructed, b.mode
+  from systables a, sysdistrib b
+ where a.tabid = b.tabid
+ order by $sortcol
+!
+
+else
+
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select distinct 
+       tabname, 
+       nvl(b.constructed, "-"), 
+       nvl(b.mode, "-")
+  from systables a, outer sysdistrib b
+ where a.tabid = b.tabid
+--   and a.tabid > 99
+   and a.tabtype = 'T'
+ order by $sortcol
+!
+
+fi
+
+echo '--------------------------------------------------'
+echo '   Database : '$dbname
+echo '--------------------------------------------------'
+echo '[5m                   Object Name  Construncted  Mode[0m'
+echo '--------------------------------------------------'
+
+$CAWK -F ' ' '
+$3 ~ /H/ { printf("%30s  %12s     [31;43m%1s[0m\n", $1, $2, $3); }
+$3 ~ /M/ { printf("%30s  %12s     [36;43m%1s[0m\n", $1, $2, $3); }
+$3 !~ /H|M/ { printf("%30s  %12s     [30;43m%1s[0m\n", $1, $2, $3); }
+' $TempFile1
+
+echo '--------------------------------------------------'
+echo '사용법 : chkupt (DB명) (Sort 내용: 1-이름, 2-날짜, 3-모드) (all)'
+
+################### Default ########################################
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+####################################################################
