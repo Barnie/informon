@@ -1,0 +1,34 @@
+#!/bin/ksh
+
+# chkzom : Zombie Session 조회
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/chkzom.tmp ]; then rm $TOOL/tmp/chkzom.tmp
+fi
+
+echo
+echo '---------------------------------------'
+echo '[5mSession ID  Process ID    Terminal Name[0m'
+echo '---------------------------------------'
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+unload to $TOOL/tmp/chkzom.tmp delimiter ' '
+select sid, pid, decode(ttyin,'','-',ttyin) from sysscblst;
+!
+
+nawk -F ' ' '{
+{
+  printf("%d %d %s ", $1, $2, $3);
+  system("expr `ps e "$2" | wc -l` - 1");
+}
+}' $TOOL/tmp/chkzom.tmp 2> /dev/null | nawk -F ' ' '{
+{
+  if ( $4 == 0 || $2 < 0 ) printf("%10d  %10d %16s\n", $1, $2, $3);
+}
+}'
+
+echo '---------------------------------------'
+
+if [ -f $TOOL/tmp/chkzom.tmp ]; then rm $TOOL/tmp/chkzom.tmp
+fi
