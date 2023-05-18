@@ -4,9 +4,6 @@
 #
 #   colcnt : unl 파일의 한 행의 Column 갯수를 보여주는 Shell
 #
-#   작성자 : 바니                 작성일자 : 2003년 12월 04일
-#                                 최종수정 : 2007년 10월 23일
-#                                 표준버전 : v0.2
 #
 #   사용법 : colcnt [File명 | all] [Delimiter]
 #
