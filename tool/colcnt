@@ -1,0 +1,81 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   colcnt : unl 파일의 한 행의 Column 갯수를 보여주는 Shell
+#
+#   작성자 : 바니                 작성일자 : 2003년 12월 04일
+#                                 최종수정 : 2007년 10월 23일
+#                                 표준버전 : v0.2
+#
+#   사용법 : colcnt [File명 | all] [Delimiter]
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+#########################################################################
+
+
+echo '[0m\c'
+################### Default #############################################
+
+if [ ! "$1" ]
+then
+	
+	echo '사용법 : colcnt [File명 | all] [Delimiter]'
+	
+else
+	
+	if [ ! "$2" ]
+	then export deli='|'
+	else export deli=$2
+	fi
+
+	if [ $1 = "all" ]
+	then ls *.unl > $TempFile2
+	else echo $1 > $TempFile2
+	fi
+
+	for i in `cat $TempFile2`
+	do
+
+		head -1 $i > $TempFile1
+		export a1=`ls -al $TempFile1 | $CAWK -F ' ' '{
+			{ print $5 }
+		}'`
+
+		echo '1,$s/'$deli'//g\nw\nq' | ed $TempFile1 > /dev/null
+		export a2=`ls -al $TempFile1 | $CAWK -F ' ' '{
+			{ print $5 }
+		}'`
+
+		printf "%s%s %d%s\n" $i "의 Column 갯수는" `expr $a1 - $a2` "개 입니다."
+
+	done
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
