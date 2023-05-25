@@ -1,0 +1,97 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   count  : Table의 행수를 보여주는 Shell입니다
+#
+#   사용법 : count (table명 혹은 File명) (DB명)
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : count (table명 혹은 File명) (DB명)'
+
+else
+
+	if [ -f $1 ]
+	then
+
+		echo
+		for i in `cat $1`
+		do
+			dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+				set isolation to dirty read;
+				unload to $TempFile1 delimiter ' '
+				select count(*)::int from $i;
+!
+			if [ -f $TempFile1 ] 
+			then 
+				printf "%30s :%10d\n" $i `cat $TempFile1`
+				rm $TempFile1
+			else
+				printf "%30s :      없음\n" $i 
+			fi
+		done
+
+	else
+
+		dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+			set isolation to dirty read;
+			unload to $TempFile1 delimiter ' '
+			select count(*)::int from $1;
+!
+
+		if [ -f $TempFile1 ]; then 
+			echo $1' : '`cat $TempFile1`
+		else
+			echo '테이블이 존재하지 않습니다.'
+		fi
+
+	fi
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1
+fi
