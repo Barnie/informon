@@ -1,0 +1,67 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   count2 : Table의 행수를 보여주는 Shell입니다
+#
+#   사용법 : count2 (table명 혹은 File명) (DB명)
+#
+#########################################################################
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/count.tmp ]; then rm $TOOL/tmp/count.tmp
+fi
+
+if [ ! "$1" ]
+then
+
+echo '사용법 : count2 (table명 혹은 File명) (DB명)'
+
+else
+
+if [ ! "$2" ]
+then export dbname='ksnet'
+else export dbname=$2
+fi
+
+if [ -f $1 ]
+then
+
+echo
+for i in `cat $1`
+do
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/count.tmp delimiter ' '
+select count(*)::int from $i;
+!
+if [ -f $TOOL/tmp/count.tmp ] 
+then 
+printf "%10d\n" `cat $TOOL/tmp/count.tmp`
+rm $TOOL/tmp/count.tmp
+else
+echo '      없음'
+fi
+done
+
+else
+
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/count.tmp delimiter ' '
+select count(*)::int from $1;
+!
+
+if [ -f $TOOL/tmp/count.tmp ]; then 
+printf "%10d\n" `cat $TOOL/tmp/count.tmp`
+else
+echo '      없음'
+fi
+
+fi
+
+fi
+
+if [ -f $TOOL/tmp/count.tmp ]; then rm $TOOL/tmp/count.tmp
+fi
