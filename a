@@ -1,1 +1,1 @@
-git commit -m "close #43 count2 : Table의 행수를 보여주는 Shell"
+git commit -m "close #44 dbcheck : DBMS 상태 통합 확인"
