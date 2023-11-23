@@ -1,0 +1,564 @@
+#!/bin/ksh
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+if [ -f $TOOL/tmp/dbreport.tmp2 ]; then rm $TOOL/tmp/dbreport.tmp2
+fi
+if [ -f $TOOL/tmp/dbreport.tmp3 ]; then rm $TOOL/tmp/dbreport.tmp3
+fi
+
+# Pagesize 확인
+export pagesize=`onstat -b | grep 'buffer size' | nawk -F ',' {'
+                                                  { print $5; }
+                                                  }' | nawk -F 'buffer' {'
+                                                       { print $1 }
+                                                       }'`
+export pagesize=`expr $pagesize / 1024`
+
+echo $INFORMIXSERVER'|\c' > $TOOL/tmp/dbreport.tmp2
+
+date +"%Y%m%d" > $TOOL/tmp/dbreport.tmp
+echo `cat $TOOL/tmp/dbreport.tmp`'|\c' >> $TOOL/tmp/dbreport.tmp2
+echo '작업 일자 : '`cat $TOOL/tmp/dbreport.tmp`
+
+date +"%H%M%d" > $TOOL/tmp/dbreport.tmp
+echo `cat $TOOL/tmp/dbreport.tmp`'|\c' >> $TOOL/tmp/dbreport.tmp2
+echo '작업 시간 : '`cat $TOOL/tmp/dbreport.tmp`
+
+#################################################################
+#  01. Informix Mode                                            #
+#################################################################
+
+echo
+onstat - | nawk -F ' -- ' '{ print $2 }' > $TOOL/tmp/dbreport.tmp
+echo `cat $TOOL/tmp/dbreport.tmp`'|\c' >> $TOOL/tmp/dbreport.tmp2
+echo 'DB 상태   : '`cat $TOOL/tmp/dbreport.tmp`
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+
+#################################################################
+#  02. Global Transaction                                       #
+#################################################################
+
+#echo
+#chkgx 10
+echo '0|\c' >> $TOOL/tmp/dbreport.tmp2
+#echo
+#echo
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+
+#################################################################
+#  03. Logical Log Backup                                       #
+#################################################################
+
+echo
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter '|'
+select sum(1), sum(is_backed_up), round(sum(is_backed_up)/sum(1)*100, 2)
+  from syslogs;
+!
+echo `cat $TOOL/tmp/dbreport.tmp`'\c' >> $TOOL/tmp/dbreport.tmp2
+cat $TOOL/tmp/dbreport.tmp | nawk -F '|' '{
+{ printf("총 %d개의 Log중 %d개 백업됨 \( 백업률 : %s\% \)\n", $1, $2, $3); }
+}'
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+
+#################################################################
+#  04. Dbspace Free Space                                       #
+#################################################################
+
+echo
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter '|'
+select d.name, sum(nvl(c.nfree,0))*'$pagesize' free, count(c.nfree) fchks
+  from sysdbspaces d, outer syschunks c
+ where d.dbsnum = c.dbsnum
+   and d.name in ('datadbs', 'defdbs', 'indexdbs', 'masterdbs')
+   and ( (     d.name in ('datadbs', 'defdbs', 'masterdbs')
+           and nfree > `expr 2000000 / $pagesize`           )
+      or (     d.name = 'indexdbs'
+           and nfree > `expr 1900000 / $pagesize`           ) )
+ group by d.name
+ order by d.name;
+!
+
+for i in `cat $TOOL/tmp/dbreport.tmp`
+do
+	echo $i'\c' >> $TOOL/tmp/dbreport.tmp2
+done
+
+# 2G 이상 공간이 남은 Chunk 갯수
+echo '-------------------------------------------------------'
+echo '[5mdbspace name             free chunks    free chunk size[0m'
+echo '-------------------------------------------------------'
+cat $TOOL/tmp/dbreport.tmp | nawk -F '|' '{
+{
+   freeorg=$2;
+   freesize="";
+   while ( int(freeorg / 1000 * 1000) > 0 )
+   {
+      freetemp=freesize;
+      if ( freeorg - int(freeorg / 1000) * 1000 == 0 && int(freeorg / 1000) > 0)
+         freesize="000";
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 10 && int(freeorg / 1000) > 0)
+         freesize="00"(freeorg - int(freeorg / 1000) * 1000);
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 100 && int(freeorg / 1000) > 0)
+         freesize="0"(freeorg - int(freeorg / 1000) * 1000);
+      else freesize=(freeorg - int(freeorg / 1000) * 1000);
+
+      if ( freeorg != $2 ) freesize = freesize","freetemp;
+      freeorg = int(freeorg / 1000);
+   }
+   if ( freesize == "" ) freesize=0;
+
+   printf("%-19s      %11d   %16s\n", $1, $3, freesize);
+}
+}'
+echo '-------------------------------------------------------'
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter '|'
+select sum(nvl(c.nfree,0))*'$pagesize' free
+  from sysdbspaces d, outer syschunks c
+ where d.dbsnum = c.dbsnum
+   and d.name = 'rootdbs';
+!
+
+echo `cat $TOOL/tmp/dbreport.tmp`'\c' >> $TOOL/tmp/dbreport.tmp2
+
+cat $TOOL/tmp/dbreport.tmp | nawk -F '|' '{
+{
+   freeorg=$1;
+   freesize="";
+   while ( int(freeorg / 1000 * 1000) > 0 )
+   {
+      freetemp=freesize;
+      if ( freeorg - int(freeorg / 1000) * 1000 == 0 && int(freeorg / 1000) > 0)
+         freesize="000";
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 10 && int(freeorg / 1000) > 0)
+         freesize="00"(freeorg - int(freeorg / 1000) * 1000);
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 100 && int(freeorg / 1000) > 0)
+         freesize="0"(freeorg - int(freeorg / 1000) * 1000);
+      else freesize=(freeorg - int(freeorg / 1000) * 1000);
+
+      if ( freeorg != $1 ) freesize = freesize","freetemp;
+      freeorg = int(freeorg / 1000);
+   }
+   if ( freesize == "" ) freesize=0;
+
+   printf("Root Dbspace Free Size %32s\n", freesize);
+}
+}'
+echo '-------------------------------------------------------'
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+
+#################################################################
+#  05. Memory Segment Size                                      #
+#################################################################
+
+echo
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter '|'
+select case when seg_class = 1 then 'Resident'
+            when seg_class = 2 then 'Virtual'
+            when seg_class = 3 then 'Message'
+                               else 'Unknown'
+       end, sum(seg_size)::int, sum(seg_blkfree)::int*4096, sum(1)::int, seg_class
+  from syssegments
+ group by seg_class
+ order by 5;
+!
+
+echo '-------------------------------------------------------'
+echo '[5mSegment class           Segment size          free size[0m'
+echo '-------------------------------------------------------'
+
+cat $TOOL/tmp/dbreport.tmp | nawk -F '|' '{
+{
+   segorg=$2;
+   segsize="";
+   while ( int(segorg / 1000 * 1000) > 0 )
+   {
+      segtemp=segsize;
+      if ( segorg - int(segorg / 1000) * 1000 == 0 && int(segorg / 1000) > 0) 
+         segsize="000";
+      else if ( segorg - int(segorg / 1000) * 1000 < 10 && int(segorg / 1000) > 0)
+         segsize="00"(segorg - int(segorg / 1000) * 1000);
+      else if ( segorg - int(segorg / 1000) * 1000 < 100 && int(segorg / 1000) > 0)
+         segsize="0"(segorg - int(segorg / 1000) * 1000);
+      else segsize=(segorg - int(segorg / 1000) * 1000);
+
+      if ( segorg != $2 ) segsize = segsize","segtemp;
+      segorg = int(segorg / 1000);
+   }
+   if ( segsize == "" ) segsize=0;
+
+   freeorg=$3;
+   freesize="";
+   while ( int(freeorg / 1000 * 1000) > 0 )
+   {
+      freetemp=freesize;
+      if ( freeorg - int(freeorg / 1000) * 1000 == 0 && int(freeorg / 1000) > 0) 
+         freesize="000";
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 10 && int(freeorg / 1000) > 0)
+         freesize="00"(freeorg - int(freeorg / 1000) * 1000);
+      else if ( freeorg - int(freeorg / 1000) * 1000 < 100 && int(freeorg / 1000) > 0)
+         freesize="0"(freeorg - int(freeorg / 1000) * 1000);
+      else freesize=(freeorg - int(freeorg / 1000) * 1000);
+
+      if ( freeorg != $3 ) freesize = freesize","freetemp;
+      freeorg = int(freeorg / 1000);
+   }
+   if ( freesize == "" ) freesize=0;
+
+   printf("%s\|%s\|%s\|%s\|\n", $1, $4, segsize, freesize);
+}
+}' > $TOOL/tmp/dbreport.tmp3
+
+cat $TOOL/tmp/dbreport.tmp3 | nawk -F '|' '{
+{ printf("%-9s[%2s]       %16s   %16s\n", $1, $2, $3, $4); }
+}'
+ 
+echo '-------------------------------------------------------'
+
+export sum=0
+for i in `cat $TOOL/tmp/dbreport.tmp | nawk -F '|' '{
+          { print $2 }
+          }'`
+do
+export sum=`expr $sum + $i`
+done
+
+printf "Total Segment Size : %15s\n" `prtnum $sum`
+echo '-------------------------------------------------------'
+
+for i in `cat $TOOL/tmp/dbreport.tmp3`
+do
+	echo $i'\c' >> $TOOL/tmp/dbreport.tmp2
+done
+
+if [ `cat $TOOL/tmp/dbreport.tmp3 | wc -l` -eq 2 ]; then
+	echo 'Message|0|0|0|\c' >> $TOOL/tmp/dbreport.tmp2
+fi
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+if [ -f $TOOL/tmp/dbreport.tmp3 ]; then rm $TOOL/tmp/dbreport.tmp3
+fi
+
+#################################################################
+#  06. Informix Profile                                         #
+#################################################################
+
+echo
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter '|'
+select name, value
+  from sysprofile
+ where name in ('ovlock', 'ovuser', 'ovtrans');
+!
+
+echo '-----------------------'
+
+cat $TOOL/tmp/dbreport.tmp | nawk -F '|' '{
+{
+   printf("%7s %15d\n", $1, $2);
+}
+}'
+echo '-----------------------'
+
+for i in `cat $TOOL/tmp/dbreport.tmp`
+do
+	echo $i'\c' >> $TOOL/tmp/dbreport.tmp2
+done
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+
+#################################################################
+#  07. Raw Device                                               #
+#################################################################
+
+echo
+if [ $INFORMIXSERVER = 'instance01_tcp' ]; then
+        ls -al $INFORMIXDIR/DBS | egrep '\-\>' | egrep -v '_2$' | nawk -F '\-\>' '{
+        {print $2}
+        }' > $TOOL/tmp/dbreport.tmp
+elif [ $INFORMIXSERVER = 'instance02_tcp' ]; then
+        ls -al $INFORMIXDIR/DBS | egrep '\-\>' | egrep -v '_1$' | nawk -F '\-\>' '{
+        {print $2}
+        }' > $TOOL/tmp/dbreport.tmp
+else
+        ls -al $INFORMIXDIR/DBS | egrep '\-\>' | nawk -F '\-\>' '{
+        {print $2}
+        }' > $TOOL/tmp/dbreport.tmp
+fi
+
+echo '----------------------------------'
+echo '총 Raw Device 갯수는 '`wc -l $TOOL/tmp/dbreport.tmp | nawk -F ' ' '{
+{ print $1 }
+}'`'개 입니다.'
+echo '----------------------------------'
+
+for i in `cat $TOOL/tmp/dbreport.tmp`
+do
+ls -al $i | nawk -F ' ' '{
+{
+   if ( $1 != "crw-rw----" || $3 != "informix" || $4 != "informix" )
+      printf("\n%s %s Device는 비정상입니다.( %s %s %s )\n",$9, $10, $1, $3, $4);
+}
+}' > $TOOL/tmp/dbreport.tmp3
+done
+cat $TOOL/tmp/dbreport.tmp3
+
+echo '----------------------------------'
+echo '화면에 아무것도 나오지 않으면 모든 Device가 정상이라는 의미입니다.'
+
+for i in `cat $TOOL/tmp/dbreport.tmp3`
+do
+	echo $i' \c' >> $TOOL/tmp/dbreport.tmp2
+done
+echo '|\c' >> $TOOL/tmp/dbreport.tmp2
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+if [ -f $TOOL/tmp/dbreport.tmp3 ]; then rm $TOOL/tmp/dbreport.tmp3
+fi
+
+#################################################################
+#  08. Long Transaction                                         #
+#################################################################
+
+echo
+export percent=20
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter ' '
+select count(*)::int from syslogs;
+!
+
+export logs=`cat $TOOL/tmp/dbreport.tmp`
+rm $TOOL/tmp/dbreport.tmp
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter ' '
+select max(uniqid) from syslogs;
+!
+
+export clog=`cat $TOOL/tmp/dbreport.tmp`
+rm $TOOL/tmp/dbreport.tmp
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/dbreport.tmp delimiter ' '
+select lower(hex(x.tx_addr)), x.tx_id, lower(hex(x.tx_owner)), s.sid, s.pid, 
+       x.tx_logbeg, x.tx_loguniq, (($clog - x.tx_logbeg + 1) * 100 / $logs)::int 
+  from systrans x, sysrstcb r, sysscblst s
+ where $clog - x.tx_logbeg >= ( $logs * $percent / 100)::int
+   and x.tx_logbeg > 0
+   and x.tx_owner = r.address
+   and r.sid = s.sid;
+!
+
+echo
+echo 'Log의 '$percent'%이상을 사용중인 Tx 검색 ( Current Log : '$clog' / 총 '$logs'개 )'
+echo '-------------------------------------------------------------------------------------------'
+echo '[5mTx Addr.  (     Tx ID)  Thrd Addr.  Session ID  Process ID   Begin Log    Last Log  Used(%)[0m'
+echo '-------------------------------------------------------------------------------------------'
+
+cat $TOOL/tmp/dbreport.tmp | nawk -F ' ' '{
+{ 
+	if ( $8 > 19 ) printf("[5m");
+  	printf("%10s %10d   %10s  %10d  %10d  %10d  %10d  %7d[0m\n", 
+     		   $1, $2, $3, $4, $5, $6, $7, $8); 
+}
+}' > $TOOL/tmp/dbreport.tmp3
+
+cat $TOOL/tmp/dbreport.tmp3
+echo '-------------------------------------------------------------------------------------------'
+
+for i in `cat $TOOL/tmp/dbreport.tmp3`
+do
+	echo $i' \c' >> $TOOL/tmp/dbreport.tmp2
+done
+echo '|\c' >> $TOOL/tmp/dbreport.tmp2
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+if [ -f $TOOL/tmp/dbreport.tmp3 ]; then rm $TOOL/tmp/dbreport.tmp3
+fi
+
+#################################################################
+#  10. New Term Tables                                          #
+#################################################################
+
+echo
+if [ -f $TOOL/tmp/chktab.tmp ]; then rm $TOOL/tmp/chktab.tmp; fi
+if [ -f $TOOL/tmp/chktab.tmp2 ]; then rm $TOOL/tmp/chktab.tmp2; fi
+if [ -f index_termd ]; then rm index_termd; fi
+if [ -f index_termm ]; then rm index_termm; fi
+if [ -f index_termd2 ]; then rm index_termd2; fi
+if [ -f index_termm2 ]; then rm index_termm2; fi
+if [ -f index_termd3 ]; then rm index_termd3; fi
+if [ -f index_termm3 ]; then rm index_termm3; fi
+
+if [ $INFORMIXSERVER = 'instance02_tcp' ] || [ $INFORMIXSERVER = 'test2_tcp' ]; then 
+	export ym='yyyymm'
+elif [ $INFORMIXSERVER = 'instance01_tcp' ] || [ $INFORMIXSERVER = 'test_tcp' ] || [ $INFORMIXSERVER = 'emergency' ]; then
+	export ym='yymm'
+else
+	echo '환경 설정을 확인하세요.'
+	exit
+fi
+
+#if [ $INFORMIXSERVER = 'emergency' ]
+#then
+#	rcp m01:/informix/SCHEMA/index_* /informix/SCHEMA
+#fi
+
+if [ $INFORMIXSERVER = 'instance02_tcp' ] || [ $INFORMIXSERVER = 'test2_tcp' ]
+then
+
+dbaccess dbname <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chktab.tmp delimiter ' '
+select to_char( today, "%Y%m%d" ) tabdate from dual
+union 
+select to_char( today + 1, "%Y%m%d" ) tabdate from dual
+union
+select to_char( today + 2, "%Y%m%d" ) tabdate from dual;
+
+unload to $TOOL/tmp/chktab.tmp2 delimiter ' '
+select to_char( today + 2, "%Y%m" ) tabmonth from dual
+!
+
+else
+
+dbaccess dbname <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/chktab.tmp delimiter ' '
+select to_char( today, "%y%m%d" ) tabdate from dual
+union 
+select to_char( today + 1, "%y%m%d" ) tabdate from dual
+union
+select to_char( today + 2, "%y%m%d" ) tabdate from dual;
+
+unload to $TOOL/tmp/chktab.tmp2 delimiter ' '
+select to_char( today + 2, "%y%m" ) tabmonth from dual
+!
+
+fi
+
+for i in `cat $TOOL/tmp/chktab.tmp2`
+do
+	if [ -f tables_chktab ]; then rm tables_chktab; fi
+#	if [ $INFORMIXSERVER = 'emergency' ]
+#	then
+#		rcp m01:/informix/SCHEMA/tables_m tables_chktab
+#	else
+		cp $INFORMIXDIR/SCHEMA/tables_m tables_chktab
+#	fi
+
+	echo '1,$s/'$ym'/'$i'/g\nw\nq' | ed tables_chktab > /dev/null
+
+	index chktab dbname
+	cat index_chktab >> index_termm
+	rm tables_chktab index_chktab
+done
+
+for i in `cat $TOOL/tmp/chktab.tmp`
+do
+	if [ -f tables_chktab ]; then rm tables_chktab; fi
+#	if [ $INFORMIXSERVER = 'emergency' ]
+#	then
+#		rcp m01:/informix/SCHEMA/tables_d tables_chktab
+#	else
+		cp $INFORMIXDIR/SCHEMA/tables_d tables_chktab
+#	fi
+
+	echo '1,$s/'$ym'dd/'$i'/g\nw\nq' | ed tables_chktab > /dev/null
+
+	index chktab dbname
+	cat index_chktab >> index_termd
+	rm tables_chktab index_chktab	
+done
+
+echo
+echo 'Checking 월 Tables...'
+
+cat index_termm | grep -v '\-\-\-\-' | grep -v 'nIdx' | nawk -F ' ' '{
+{ printf("%d %d %d %d\n", $1, $2, $3, $4); }
+}' > index_termm2
+cat $INFORMIXDIR/SCHEMA/index_m | grep -v '\-\-\-\-' | grep -v 'nIdx' | nawk -F ' ' '{
+{ printf("%d %d %d %d\n", $1, $2, $3, $4); }
+}' > index_termm3
+if [ `diff index_termm2 index_termm3 | wc -l` -gt 0 ]
+then 
+	echo 'Table 이상 징후 발견 : DBA에게 연락 바람'
+	echo '이상발견|\c' >> $TOOL/tmp/dbreport.tmp2
+else 
+	echo '이상없음'
+	echo '이상없음|\c' >> $TOOL/tmp/dbreport.tmp2
+fi
+
+echo
+echo 'Checking 일 Tables...'
+
+cat index_termd | grep -v '\-\-\-\-' | grep -v 'nIdx' | nawk -F ' ' '{
+{ printf("%d %d %d %d\n", $1, $2, $3, $4); }
+}' > index_termd2
+cat $INFORMIXDIR/SCHEMA/index_d | grep -v '\-\-\-\-' | grep -v 'nIdx' | nawk -F ' ' '{
+{ printf("%d %d %d %d\n", $1, $2, $3, $4); }
+}' > index_termd3
+if [ `diff index_termd2 index_termd3 | wc -l` -gt 0 ]
+then 
+	echo 'Table 이상 징후 발견 : DBA에게 연락 바람'
+	echo '이상발견|\c' >> $TOOL/tmp/dbreport.tmp2
+else 
+	echo '이상없음'
+	echo '이상없음|\c' >> $TOOL/tmp/dbreport.tmp2
+fi
+
+if [ -f $TOOL/tmp/chktab.tmp ]; then rm $TOOL/tmp/chktab.tmp; fi
+if [ -f $TOOL/tmp/chktab.tmp2 ]; then rm $TOOL/tmp/chktab.tmp2; fi
+if [ -f index_termd ]; then rm index_termd; fi
+if [ -f index_termm ]; then rm index_termm; fi
+if [ -f index_termd2 ]; then rm index_termd2; fi
+if [ -f index_termm2 ]; then rm index_termm2; fi
+if [ -f index_termd3 ]; then rm index_termd3; fi
+if [ -f index_termm3 ]; then rm index_termm3; fi
+
+echo '|||||\c' >> $TOOL/tmp/dbreport.tmp2
+
+onstat - | nawk -F ' Up ' '{ print $2 }' | nawk -F ' days ' '{ print $1 }' > $TOOL/tmp/dbreport.tmp
+echo `cat $TOOL/tmp/dbreport.tmp`'|' >> $TOOL/tmp/dbreport.tmp2
+
+if [ -f $TOOL/tmp/dbreport.tmp ]; then rm $TOOL/tmp/dbreport.tmp
+fi
+
+dbaccess reportdb@monitoring_tcp <<! 1> /dev/null 2> /dev/null
+load from $TOOL/tmp/dbreport.tmp2 delimiter '|'
+insert into dailyreport;
+!
+
+date >> $TOOL/log/dbreport.log
+cat $TOOL/tmp/dbreport.tmp2 >> $TOOL/log/dbreport.log
+echo >> $TOOL/log/dbreport.log

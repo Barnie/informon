@@ -1,1 +1,1 @@
-git commit -m "close #44 dbcheck : DBMS 상태 통합 확인"
+git commit -m "close #45 dbreport (전반적인 DBMS 상태 확인)"
