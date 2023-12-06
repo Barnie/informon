@@ -1,0 +1,88 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   dbslst : 지정된 dbspace에 생성된 Table 목록을 보는 Shell입니다
+#   사용법 : dbslst dbspace명 (DB명)
+#   결과물 : tables_dbspace명
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : dbslst dbspace명 (DB명)'
+
+else
+
+	if [ ! "$2" ]
+	then 
+
+		if [ -f tables_$1 ]; then rm tables_$1; fi
+
+		dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+			set isolation to dirty read;
+			unload to tables_$1 delimiter ' '
+			select 
+			       distinct t.tabname, t.dbsname, t.owner
+			  from sysptnext p, systabnames t
+			 where p.pe_partnum = t. partnum
+			   and dbinfo( "DBSPACE", p.pe_partnum ) = '$1'
+			   and t.tabname not like "sys%"
+			 order by 1;
+!
+
+		echo '---------------------------------------------'
+		echo '[32;43m                   Object Name  Database Name[0m'
+		echo '---------------------------------------------'
+		cat tables_$1 | $CAWK -F ' ' '{
+								{ printf("%30s  %-s  %s\n", $1, $2, $3); }
+}'
+		echo '---------------------------------------------'
+
+	else 
+
+		if [ -f tables_$1 ]; then rm tables_$1; fi
+
+		dbaccess $2<<! 1> /dev/null 2> /dev/null
+			set isolation to dirty read;
+			unload to tables_$1 delimiter ' '
+			select {+ORDERED}
+			       distinct s.tabname
+			  from systables s, sysmaster:sysptnext p
+			 where dbinfo( "DBSPACE", p.pe_partnum ) = '$1'
+			   and p.pe_partnum = s.partnum
+			   and s.tabtype = 'T'
+			   and s.tabid > 99
+			 order by 1
+!
+
+		echo '------------------------------'
+		echo '[32;43mObject Name                   [0m'
+		echo '------------------------------'
+		cat tables_$1
+		echo '------------------------------'
+
+	fi
+
+fi
