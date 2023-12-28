@@ -4,9 +4,6 @@
 # 
 #   droptab : 보관기간이 지난 Table을 Drop하는 Shell입니다
 #
-#   작성자 : 바니                 작성일자 : 2003년  6월 20일
-#                                 최종수정 : 2009년  6월 10일
-#
 #   사용법 : droptab (현재일자 이전 몇일)
 #   요파일 : ds, $TOOL/bin/dbcopy
 #
@@ -22,10 +19,6 @@ fi
 #########################################################################
 
 export TOOL=$HOME/tool
-
-# G마켓 구분 번호 (반드시 업무계로 배포하여 사용하세요 ☆☆☆☆☆
-#export DEVI_NUMB="'DPT0Q00915','DPT0Q00918','DPT0Q00919','DPT0Q00920','DPT0Q00921','DPT0Q01256','DPT0Q01644','DPT0Q01696','DPT0Q01695','DPT0Q01734','DPT0Q02012','DPT0Q02013','DPT0Q02893','DPT0Q02894','DPT0Q02905'"
-#export VAN_MEMB_NUMB="'2208183676'"
 export TAX_PERS_NUMB="'EBA','GMK','INI','AUC','LGU'"
 
 if [ ! "$1" ]
@@ -42,7 +35,7 @@ while true
 do ##### Main While Loop
 
 ###########################################
-#   PB업무계/PB비상승인
+#   운영/백업
 ###########################################
 
 if [ $INFORMIXSERVER = 'pb01_tcp' ] || [ $INFORMIXSERVER = 'pbsec01_tcp' ]
@@ -73,7 +66,7 @@ then
       echo '   4) 백업완료 석달  (포인트 등) - 현재없음'
       echo '   5) 백업완료 12개월 (가맹점 거래고유번호 등) - 현재없음'
       echo '   6) 백업완료 24개월 (승인 등) - 현재없음'
-		echo '   7) TLF G마켓 전용으로 전환 3개월 - 현재없음'
+		echo '   7) TLF 특정고객사 전용으로 전환 3개월 - 현재없음'
       if [ $INFORMIXSERVER = 'pbsec01_tcp' ] || [ $INFORMIXSERVER = 'pbtst01_tcp' ]; then
          echo '   [5m8) 기간만료 1주일 (모니터링 등) - 현재없음[0m'
       fi
@@ -96,7 +89,7 @@ then
       if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
       if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-      dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+      dbaccess dbname<<! 1> /dev/null 2> /dev/null
          set isolation to dirty read;
          unload to $TOOL/tmp/droptab.tmp delimiter ' '
          select first 1 to_char( today - $period - $minus, "%y%m%d" ) tabdate from dual;
@@ -108,7 +101,7 @@ then
 
       for i in `cat ~informix/SCHEMA/tables_d_$period$bu`
       do
-         dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+         dbaccess dbname<<! 1> /dev/null 2> /dev/null
             set isolation to dirty read;
             unload to $TOOL/tmp/droptab.tmp delimiter ' '
             select tabname from systables
@@ -124,14 +117,14 @@ then
 
 
       #############################
-      #   TLF를 G마켓용으로 전환
+      #   TLF를 특정고객사용으로 전환
       #############################
       if [ x$bu = 'xg' ]; then
 
          echo
          echo '오늘은 '`date +"$ymd"`
          echo '------------------------------'
-         echo '[5mG마켓 전용으로 전환할 TLF 테이블들 입니다. (해당 21일분)[0m'
+         echo '[5m특정고객사 전용으로 전환할 TLF 테이블들 입니다. (해당 21일분)[0m'
          echo '------------------------------'
 
          tail -21 $TOOL/tmp/droptab.sql > $TOOL/tmp/droptab.tmp
@@ -149,36 +142,36 @@ then
 
             for g in `cat $TOOL/tmp/droptab.sql`
             do
-               # G마켓 전용 table을 작업에서 제외 (List 중에서)
+               # 특정고객사 전용 table을 작업에서 제외 (List 중에서)
                if [ `ds $g | grep data500dbs | wc -l` -gt 0 ]
                then
 
-                  # G마켓 전용 table 생성
-                  if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
-                  ds $g | sed -e '/^$/,$d' -e 's/data500dbs  extent size 500000 next size 500000/data10dbs  extent size 10000 next size 10000/g' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/gmarket.sql
-                  dbaccess ksnet $TOOL/tmp/gmarket.sql
-                  if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
+                  # 특정고객사 전용 table 생성
+                  if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
+                  ds $g | sed -e '/^$/,$d' -e 's/data500dbs  extent size 500000 next size 500000/data10dbs  extent size 10000 next size 10000/g' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/theclient.sql
+                  dbaccess dbname $TOOL/tmp/theclient.sql
+                  if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
 
-                  # G마켓 전용 Table로 G마켓 TLF만 이관
-                  $TOOL/bin/dbcopy -f 10000 -l $g.err -h $INFORMIXSERVER -H $INFORMIXSERVER -d ksnet -D ksnet -t $g -T new_$g -s "select * from $g where tax_pers_numb [1,3] in ($TAX_PERS_NUMB)"
+                  # 특정고객사 전용 Table로 특정고객사 TLF만 이관
+                  $TOOL/bin/dbcopy -f 10000 -l $g.err -h $INFORMIXSERVER -H $INFORMIXSERVER -d dbname -D dbname -t $g -T new_$g -s "select * from $g where tax_pers_numb [1,3] in ($TAX_PERS_NUMB)"
 
-                  # G마켓 전용 Table에 Index 생성
-                  ds $g | sed -e '1,/revoke/d' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/gmarket.sql
-                  dbaccess ksnet $TOOL/tmp/gmarket.sql
-                  if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
+                  # 특정고객사 전용 Table에 Index 생성
+                  ds $g | sed -e '1,/revoke/d' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/theclient.sql
+                  dbaccess dbname $TOOL/tmp/theclient.sql
+                  if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
 
-                  # G마켓 전용 Table 통계정보 갱신
-                  dbaccess ksnet<<!
+                  # 특정고객사 전용 Table 통계정보 갱신
+                  dbaccess dbname<<!
                      update statistics high for table new_$g;
 !
-                  # G마켓 전용 Table을 cctlh로 Rename
-                  ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s %s to old_%s;\n", $2, $3, $3); }' > $TOOL/tmp/gmarket.sql
-                  ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s new_%s to %s;\n", $2, $3, $3); }' >> $TOOL/tmp/gmarket.sql
-                  dbaccess ksnet $TOOL/tmp/gmarket.sql
+                  # 특정고객사 전용 Table을 cctlh로 Rename
+                  ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s %s to old_%s;\n", $2, $3, $3); }' > $TOOL/tmp/theclient.sql
+                  ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s new_%s to %s;\n", $2, $3, $3); }' >> $TOOL/tmp/theclient.sql
+                  dbaccess dbname $TOOL/tmp/theclient.sql
 
                   chkext $g
                else
-                  echo $g'는 G마켓 전용 Table 입니다.'
+                  echo $g'는 특정고객사 전용 Table 입니다.'
                fi
             done
 
@@ -186,7 +179,7 @@ then
             echo 'n' | tablst2 old_cctlh
             echo
 
-            if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
+            if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
 
          else
             echo '그냥 둡니다'
@@ -216,7 +209,7 @@ then
             echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
             echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-            dbaccess ksnet $TOOL/tmp/droptab.sql 
+            dbaccess dbname $TOOL/tmp/droptab.sql 
                   
          else        
             echo '그냥 둡니다'
@@ -253,7 +246,7 @@ then
       if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
       if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-      dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+      dbaccess dbname<<! 1> /dev/null 2> /dev/null
          set isolation to dirty read;
          unload to $TOOL/tmp/droptab.tmp delimiter ' '
          select first 1 to_char( today - interval(`expr $period + $minus`) month to month, "%y%m" ) tabdate from dual;
@@ -265,7 +258,7 @@ then
 
       for i in `cat ~informix/SCHEMA/tables_m_$period$bu`
       do
-         dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+         dbaccess dbname<<! 1> /dev/null 2> /dev/null
             set isolation to dirty read;
             unload to $TOOL/tmp/droptab.tmp delimiter ' '
             select tabname from systables
@@ -299,7 +292,7 @@ then
          echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
          echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-         dbaccess ksnet $TOOL/tmp/droptab.sql
+         dbaccess dbname $TOOL/tmp/droptab.sql
 
       else
          echo '그냥 둡니다'
@@ -324,7 +317,7 @@ then
 #   정보계
 ###########################################
 
-elif [ $INFORMIXSERVER = 'mst02_tcp' ] || [ $INFORMIXSERVER = 'tst2_tcp' ]
+elif [ $INFORMIXSERVER = 'svr_tcp' ] || [ $INFORMIXSERVER = 'tst_tcp' ]
 then 
 	
 	echo
@@ -368,7 +361,7 @@ then
 		if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
 		if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-		dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+		dbaccess dbname<<! 1> /dev/null 2> /dev/null
 			set isolation to dirty read;
 			unload to $TOOL/tmp/droptab.tmp delimiter ' '
 			select first 1 to_char( today - $period - $minus, "%Y%m%d" ) tabdate from dual;
@@ -380,7 +373,7 @@ then
 
 		for i in `cat ~informix/SCHEMA/tables_d_$period$bu`
 		do
-			dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+			dbaccess dbname<<! 1> /dev/null 2> /dev/null
 				set isolation to dirty read;
 				unload to $TOOL/tmp/droptab.tmp delimiter ' '
 				select tabname from systables
@@ -413,7 +406,7 @@ then
 			echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 			echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-			dbaccess ksnet $TOOL/tmp/droptab.sql 
+			dbaccess dbname $TOOL/tmp/droptab.sql 
 
 		else
 			echo '그냥 둡니다'
@@ -451,7 +444,7 @@ then
 		if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
 		if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-		dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+		dbaccess dbname<<! 1> /dev/null 2> /dev/null
 			set isolation to dirty read;
 			unload to $TOOL/tmp/droptab.tmp delimiter ' '
 			select first 1 to_char( today - interval(`expr $period + $minus`) month to month, "%Y%m" ) tabdate from dual;
@@ -463,7 +456,7 @@ then
 
 		for i in `cat ~informix/SCHEMA/tables_m_$period$bu`
 		do
-			dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+			dbaccess dbname<<! 1> /dev/null 2> /dev/null
 				set isolation to dirty read;
 				unload to $TOOL/tmp/droptab.tmp delimiter ' '
 				select tabname from systables
@@ -496,7 +489,7 @@ then
 			echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 			echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-			dbaccess ksnet $TOOL/tmp/droptab.sql 
+			dbaccess dbname $TOOL/tmp/droptab.sql 
 
 		else
 			echo '그냥 둡니다'
@@ -548,7 +541,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 		echo '   4) 백업완료 석달  (포인트 등)'
 		echo '   5) 백업완료 12개월 (가맹점 거래고유번호 등)'
 		echo '   6) 백업완료 24개월 (승인 등)'
-		echo '   7) TLF G마켓 전용으로 전환 3개월'
+		echo '   7) TLF 특정고객사 전용으로 전환 3개월'
 		if [ $INFORMIXSERVER = 'oldsos' ] || [ $INFORMIXSERVER = 'neoecs' ]; then
 			echo '   [5m8) 기간만료 1주일 (모니터링 등)[0m'
 		fi
@@ -570,7 +563,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 		if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
 		if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-		dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+		dbaccess dbname<<! 1> /dev/null 2> /dev/null
 			set isolation to dirty read;
 			unload to $TOOL/tmp/droptab.tmp delimiter ' '
 			select first 1 to_char( today - $period - $minus, "%y%m%d" ) tabdate from dual;
@@ -582,7 +575,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 
 		for i in `cat ~informix/SCHEMA/tables_d_$period$bu`
 		do
-			dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+			dbaccess dbname<<! 1> /dev/null 2> /dev/null
 				set isolation to dirty read;
 				unload to $TOOL/tmp/droptab.tmp delimiter ' '
 				select tabname from systables
@@ -597,14 +590,14 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 		done
 		
 		#############################
-		#   TLF를 G마켓용으로 전환
+		#   TLF를 특정고객사용으로 전환
 		#############################
 		if [ x$bu = 'xg' ]; then
 
 			echo
 			echo '오늘은 '`date +"$ymd"`
 			echo '------------------------------'
-			echo '[5mG마켓 전용으로 전환할 TLF 테이블들 입니다. (해당 21일분)[0m'
+			echo '[5m특정고객사 전용으로 전환할 TLF 테이블들 입니다. (해당 21일분)[0m'
 			echo '------------------------------'
 
 			tail -21 $TOOL/tmp/droptab.sql > $TOOL/tmp/droptab.tmp
@@ -621,37 +614,37 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 
 				for g in `cat $TOOL/tmp/droptab.sql`
 				do
-					# G마켓 전용 table을 작업에서 제외 (List 중에서)
+					# 특정고객사 전용 table을 작업에서 제외 (List 중에서)
 					if [ `ds $g | grep data500dbs | wc -l` -gt 0 ]
 					then
 					
-						# G마켓 전용 table 생성
-						if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
-						ds $g | sed -e '/^$/,$d' -e 's/data500dbs  extent size 500000 next size 500000/data10dbs  extent size 10000 next size 10000/g' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/gmarket.sql
-						dbaccess ksnet $TOOL/tmp/gmarket.sql
-						if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
+						# 특정고객사 전용 table 생성
+						if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
+						ds $g | sed -e '/^$/,$d' -e 's/data500dbs  extent size 500000 next size 500000/data10dbs  extent size 10000 next size 10000/g' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/theclient.sql
+						dbaccess dbname $TOOL/tmp/theclient.sql
+						if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
 						
-						# G마켓 전용 Table로 G마켓 TLF만 이관
-						$TOOL/bin/dbcopy -f 10000 -l $g.err -h $INFORMIXSERVER -H $INFORMIXSERVER -d ksnet -D ksnet -t $g -T new_$g -s "select * from $g where tax_pers_numb [1,3] in ($TAX_PERS_NUMB)"
+						# 특정고객사 전용 Table로 특정고객사 TLF만 이관
+						$TOOL/bin/dbcopy -f 10000 -l $g.err -h $INFORMIXSERVER -H $INFORMIXSERVER -d dbname -D dbname -t $g -T new_$g -s "select * from $g where tax_pers_numb [1,3] in ($TAX_PERS_NUMB)"
 					
-						# G마켓 전용 Table에 Index 생성
-						ds $g | sed -e '1,/revoke/d' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/gmarket.sql
-						dbaccess ksnet $TOOL/tmp/gmarket.sql
-						if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
+						# 특정고객사 전용 Table에 Index 생성
+						ds $g | sed -e '1,/revoke/d' -e 's/'$g'/new_'$g'/g' > $TOOL/tmp/theclient.sql
+						dbaccess dbname $TOOL/tmp/theclient.sql
+						if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
 							
-						# G마켓 전용 Table 통계정보 갱신
-						dbaccess ksnet<<!
+						# 특정고객사 전용 Table 통계정보 갱신
+						dbaccess dbname<<!
 							update statistics high for table new_$g;
 !
 					
-						# G마켓 전용 Table을 cctlh로 Rename
-						ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s %s to old_%s;\n", $2, $3, $3); }' > $TOOL/tmp/gmarket.sql
-						ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s new_%s to %s;\n", $2, $3, $3); }' >> $TOOL/tmp/gmarket.sql
-						dbaccess ksnet $TOOL/tmp/gmarket.sql
+						# 특정고객사 전용 Table을 cctlh로 Rename
+						ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s %s to old_%s;\n", $2, $3, $3); }' > $TOOL/tmp/theclient.sql
+						ds $g | grep "create" | sed -e "s/unique//g" -e "s/\"[A-z]*\".//g" | $CAWK -F ' ' '{ printf("rename %s new_%s to %s;\n", $2, $3, $3); }' >> $TOOL/tmp/theclient.sql
+						dbaccess dbname $TOOL/tmp/theclient.sql
 						
 						chkext $g
 					else
-						echo $g'는 G마켓 전용 Table 입니다.'
+						echo $g'는 특정고객사 전용 Table 입니다.'
 					fi
 				done
 				
@@ -659,7 +652,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 				echo 'n' | tablst2 old_cctlh
 				echo
 				
-				if [ -f $TOOL/tmp/gmarket.sql ]; then rm $TOOL/tmp/gmarket.sql; fi
+				if [ -f $TOOL/tmp/theclient.sql ]; then rm $TOOL/tmp/theclient.sql; fi
 
 			else
 				echo '그냥 둡니다'
@@ -689,7 +682,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 				echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 				echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-				dbaccess ksnet $TOOL/tmp/droptab.sql 
+				dbaccess dbname $TOOL/tmp/droptab.sql 
 
 			else
 				echo '그냥 둡니다'
@@ -725,7 +718,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 		if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
 		if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-		dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+		dbaccess dbname<<! 1> /dev/null 2> /dev/null
 			set isolation to dirty read;
 			unload to $TOOL/tmp/droptab.tmp delimiter ' '
 			select first 1 to_char( today - interval(`expr $period + $minus`) month to month, "%y%m" ) tabdate from dual;
@@ -737,7 +730,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 
 		for i in `cat ~informix/SCHEMA/tables_m_$period$bu`
 		do
-			dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+			dbaccess dbname<<! 1> /dev/null 2> /dev/null
 				set isolation to dirty read;
 				unload to $TOOL/tmp/droptab.tmp delimiter ' '
 				select tabname from systables
@@ -770,7 +763,7 @@ elif [ $INFORMIXSERVER = 'mst01_tcp' ] || [ $INFORMIXSERVER = 'oldsos' ] || [ $I
 			echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 			echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-			dbaccess ksnet $TOOL/tmp/droptab.sql 
+			dbaccess dbname $TOOL/tmp/droptab.sql 
 
 		else
 			echo '그냥 둡니다'
@@ -836,7 +829,7 @@ then
         if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
         if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-        dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+        dbaccess dbname<<! 1> /dev/null 2> /dev/null
             set isolation to dirty read;
             unload to $TOOL/tmp/droptab.tmp delimiter ' '
             select first 1 to_char( today - $period - $minus, "%Y%m%d" ) tabdate from dual;
@@ -848,7 +841,7 @@ then
 
         for i in `cat ~informix/SCHEMA/DESC/tables_d_$period$bu`
         do
-            dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+            dbaccess dbname<<! 1> /dev/null 2> /dev/null
                 set isolation to dirty read;
                 unload to $TOOL/tmp/droptab.tmp delimiter ' '
                 select tabname from systables
@@ -882,7 +875,7 @@ then
             echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
             echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-            dbaccess ksnet $TOOL/tmp/droptab.sql
+            dbaccess dbname $TOOL/tmp/droptab.sql
 
         else
             echo '그냥 둡니다'
@@ -922,7 +915,7 @@ then
         if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
 
-        dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+        dbaccess dbname<<! 1> /dev/null 2> /dev/null
             set isolation to dirty read;
             unload to $TOOL/tmp/droptab.tmp delimiter ' '
             select first 1 to_char( today - interval(`expr $period + $minus`) month to month, "%Y%m" ) tabdate from dual;
@@ -934,7 +927,7 @@ then
 
         for i in `cat ~informix/SCHEMA/DESC/tables_m_$period$bu`
         do
-            dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+            dbaccess dbname<<! 1> /dev/null 2> /dev/null
                 set isolation to dirty read;
                 unload to $TOOL/tmp/droptab.tmp delimiter ' '
                 select tabname from systables
@@ -966,7 +959,7 @@ then
             echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
             echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-            dbaccess ksnet $TOOL/tmp/droptab.sql
+            dbaccess dbname $TOOL/tmp/droptab.sql
 
         else
             echo '그냥 둡니다'
@@ -1024,7 +1017,7 @@ then
 		if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
 		if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-		dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+		dbaccess dbname<<! 1> /dev/null 2> /dev/null
 			set isolation to dirty read;
 			unload to $TOOL/tmp/droptab.tmp delimiter ' '
 			select first 1 to_char( today - interval(`expr $period + $minus`) month to month, "%Y%m" ) tabdate from dual;
@@ -1036,7 +1029,7 @@ then
 
 		for i in `cat ~informix/SCHEMA/M03/tables_m_$period$bu`
 		do
-			dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+			dbaccess dbname<<! 1> /dev/null 2> /dev/null
 				set isolation to dirty read;
 				unload to $TOOL/tmp/droptab.tmp delimiter ' '
 				select tabname from systables
@@ -1069,7 +1062,7 @@ then
 			echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 			echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-			dbaccess ksnet $TOOL/tmp/droptab.sql 
+			dbaccess dbname $TOOL/tmp/droptab.sql 
 
 		else
 			echo '그냥 둡니다'
@@ -1135,7 +1128,7 @@ then
 		if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
 		if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-		dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+		dbaccess dbname<<! 1> /dev/null 2> /dev/null
 			set isolation to dirty read;
 			unload to $TOOL/tmp/droptab.tmp delimiter ' '
 			select first 1 to_char( today - $period - $minus, "%y%m%d" ) tabdate from dual;
@@ -1147,7 +1140,7 @@ then
 
 		for i in `cat ~informix/SCHEMA/tables_d_$period$bu`
 		do
-			dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+			dbaccess dbname<<! 1> /dev/null 2> /dev/null
 				set isolation to dirty read;
 				unload to $TOOL/tmp/droptab.tmp delimiter ' '
 				select tabname from systables
@@ -1180,7 +1173,7 @@ then
 			echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 			echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-			dbaccess ksnet $TOOL/tmp/droptab.sql 
+			dbaccess dbname $TOOL/tmp/droptab.sql 
 
 		else
 			echo '그냥 둡니다'
@@ -1206,7 +1199,7 @@ then
 		if [ -f $TOOL/tmp/droptab.tmp ]; then rm $TOOL/tmp/droptab.tmp; fi
 		if [ -f $TOOL/tmp/droptab.sql ]; then rm $TOOL/tmp/droptab.sql; fi
 
-		dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+		dbaccess dbname<<! 1> /dev/null 2> /dev/null
 			set isolation to dirty read;
 			unload to $TOOL/tmp/droptab.tmp delimiter ' '
 			select first 1 to_char( today - interval(`expr $period + $minus`) month to month, "%y%m" ) tabdate from dual;
@@ -1218,7 +1211,7 @@ then
 
 		for i in `cat ~informix/SCHEMA/tables_m_$period$bu`
 		do
-			dbaccess ksnet<<! 1> /dev/null 2> /dev/null
+			dbaccess dbname<<! 1> /dev/null 2> /dev/null
 				set isolation to dirty read;
 				unload to $TOOL/tmp/droptab.tmp delimiter ' '
 				select tabname from systables
@@ -1251,7 +1244,7 @@ then
 			echo '1,$s/^/drop table /g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 			echo '1,$s/$/;/g\nw\nq' | ed $TOOL/tmp/droptab.sql > /dev/null
 
-			dbaccess ksnet $TOOL/tmp/droptab.sql 
+			dbaccess dbname $TOOL/tmp/droptab.sql 
 
 		else
 			echo '그냥 둡니다'
