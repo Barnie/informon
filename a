@@ -1,1 +1,1 @@
-git commit -m "close #46 dbslst : 지정된 dbspace에 생성된 Table 목록 보기"
+git commit -m "close #47 droptab : 보관기간이 지난 Table을 Drop하는 Shell"
