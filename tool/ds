@@ -1,0 +1,56 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   ds     : 특정 Table의 Schema를 보여주는 Shell입니다
+#
+#   사용법 : ds (Table명) [DB명] [n:-ss option 제거]
+#
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+if [ ! "$1" ]; then
+   echo "사용법 : ds (Table명) [DB명] [n:-ss option 제거]"
+else
+
+   if [ ! "$3" ]
+      then export option="-ss"
+      elif [ $3 = 'n' ]
+         then export option=" "
+      else export option="-ss"
+   fi
+
+   dbschema -d $dbname -t $1 $option -p all -q | egrep -v 'No table or view' | egrep -v 'No permissions for user' | $CAWK -F ' ' '
+		BEGIN { start=0; }
+		{ 
+			if ( $1=="{" && $2=="TABLE" ) start=1
+			if ( start==1 ) print $0
+		}
+	'
+
+fi

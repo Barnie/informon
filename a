@@ -1,1 +1,1 @@
-git commit -m "close #47 droptab : 보관기간이 지난 Table을 Drop하는 Shell"
+git commit -m "close #48 ds : 특정 Table의 Schema를 보여주는 Shell"
