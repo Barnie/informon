@@ -1,1 +1,1 @@
-git commit -m "close #48 ds : 특정 Table의 Schema를 보여주는 Shell"
+git commit -m "close #49 first1 : 지정한 테이블의 초기 n행을 보여주는 shell"
