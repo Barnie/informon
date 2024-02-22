@@ -1,0 +1,93 @@
+#!/bin/ksh
+export LC_ALL=ko_KR.UTF-8
+export LANG=ko_KR.UTF-8
+
+####################################################################
+#
+#   getsql : Session에서 수행되는 query를 저장하는 Shell입니다
+#
+#   사용법 : getsql [Session ID]
+#
+####################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F '/' '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$DBNAME" ]
+then export dbname="ksnet"
+else export dbname=$DBNAME
+fi
+#########################################################################
+
+################### Default #############################################
+
+if [ ! "$1" ]
+then
+	echo '사용법 : getsql [Session ID]'
+	exit
+fi
+
+onstat -g sql $1 | $CAWK -F '$' '
+BEGIN {
+	curr = 0; last = 0;
+	curr_sql = ""; last_sql = "";
+}
+{
+	if ( curr > 0 ) {
+		curr_sql = curr_sql $1;
+	}
+	if ( last > 0 ) {
+		last_sql = last_sql $1;
+	}
+
+	if ( $1 == "Current SQL statement :" ) {
+		curr = 1;
+	}
+	if ( $1 == "Last parsed SQL statement :" ) {
+		last = 1;
+	}
+	if ( $1 == "" ) {
+		curr = 0; last = 0;
+	}
+}
+END {
+	if ( curr_sql != "" || last_sql != "" ) {
+		printf( "[ %d ] ", '$1' );
+		system( "date" );
+		if ( curr_sql != "" ) {
+			print "--- Current -----------------------------------------------------------------"
+			print curr_sql;
+		}
+		if ( last_sql != "" ) {
+			print "--- Last --------------------------------------------------------------------"
+			print last_sql;
+		}
+		print "============================================================================="
+	}
+}
+'
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
