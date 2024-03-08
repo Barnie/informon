@@ -1,0 +1,85 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   grpidx : 특정 SQL파일의 Index 생성 정보를 읽어 Index를
+#            Disable 혹은 Enable하는 Script를 생성하는 Shell입니다
+#
+#   사용법 : grpidx [Schema 파일명] (set indexes 구분 (d/e))
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then
+	echo '사용법 : grpidx [Schema 파일명] (set indexes 구분 (d/e))'
+else
+
+	grep 'create ' $1 | grep 'index' > $TempFile1
+	echo '1,$s/"informix"\.//g\nw\nq' | ed $TempFile1 > /dev/null
+	echo '1,$s/unique//g\nw\nq' | ed $TempFile1 > /dev/null
+	echo '1,$s/cluster//g\nw\nq' | ed $TempFile1 > /dev/null
+	echo '1,$s/create//g\nw\nq' | ed $TempFile1 > /dev/null
+	echo '1,$s/index//g\nw\nq' | ed $TempFile1 > /dev/null
+	cat $TempFile1 | $CAWK -F ' ' '{
+	{ print $1 }
+	}' > grpidx.out
+
+	if [ ! "$2" ]
+	then 
+		echo 'grpidx.out을 확인하시겠습니까? \c'
+		read yn
+		if [ $yn = 'y' ]; then
+			cat grpidx.out
+		fi
+	else
+		if [ $2 = 'e' ]; then
+			echo '1,$s/^/set indexes /g\nw\nq' | ed grpidx.out > /dev/null
+			echo '1,$s/$/ enabled;/g\nw\nq' | ed grpidx.out > /dev/null
+			mv grpidx.out idx_e.sql
+			echo 'idx_e.sql 파일을 확인하세요'
+		elif [ $2 = 'd' ]; then
+			echo '1,$s/^/set indexes /g\nw\nq' | ed grpidx.out > /dev/null
+			echo '1,$s/$/ disabled;/g\nw\nq' | ed grpidx.out > /dev/null
+			mv grpidx.out idx_d.sql
+			echo 'idx_d.sql 파일을 확인하세요'
+		else
+			echo '잘못된 모드변경 옵셥입니다.'
+			echo 'grpidx.out을 확인하시겠습니까? \c'
+			read yn
+			if [ $yn = 'y' ]; then
+				cat grpidx.out
+			fi
+		fi
+	fi
+
+	if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+fi

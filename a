@@ -1,1 +1,1 @@
-git commit -m "close #50 getsql : Session에서 수행되는 query를 저장하는 Shell"
+git commit -m "close #51 grpidx : 특정 SQL파일의 Index 생성 정보를 읽어, Index를 Disable 혹은 Enable하는 Script를 생성하는 Shell"
