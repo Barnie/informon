@@ -1,0 +1,124 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   idxcol : 테이블의 인덱스 목록과 각 인덱스의 column 갯수 구하기
+#
+#   사용법 : idxcol (tables_ 뒤의 파일명 혹은 Table명) [dbname]
+#
+#########################################################################
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/idxcol.tmp ]; then rm $TOOL/tmp/idxcol.tmp
+fi
+
+if [ ! "$2" ]
+then
+   dbname="dbname"
+else
+   dbname=$2
+fi
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : idxcol (tables_ 뒤의 파일명 혹은 Table명) [dbname]'
+
+else 
+
+	if [ -f tables_$1 ]
+	then
+
+		if [ -f idxcol_$1 ]; then rm idxcol_$1
+		fi
+
+		for i in `cat tables_$1`
+		do
+			echo $i' 테이블 조사'
+
+dbaccess $dbname <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/idxcol.tmp delimiter ' '
+select i.idxname,
+       decode ( i.part1,0,0,1) +
+       decode ( i.part2,0,0,1) +
+       decode ( i.part3,0,0,1) +
+       decode ( i.part4,0,0,1) +
+       decode ( i.part5,0,0,1) +
+       decode ( i.part6,0,0,1) +
+       decode ( i.part7,0,0,1) +
+       decode ( i.part8,0,0,1) +
+       decode ( i.part9,0,0,1) +
+       decode (i.part10,0,0,1) +
+       decode (i.part11,0,0,1) +
+       decode (i.part12,0,0,1) +
+       decode (i.part13,0,0,1) +
+       decode (i.part14,0,0,1) +
+       decode (i.part15,0,0,1) +
+       decode (i.part16,0,0,1) idxcols
+  from sysindexes i, systables t
+ where i.tabid = t.tabid
+   and t.tabid > 99
+   and t.tabname='$i'
+   and t.tabtype='T';
+!
+
+			if [ `cat $TOOL/tmp/idxcol.tmp | wc -l` -gt 0 ]
+			then 
+				echo '[  '$i'  ]' >> idxcol_$1
+				cat $TOOL/tmp/idxcol.tmp | nawk -F ' ' '{
+				{ printf ("%20s  %2d\n", $1, $2); }
+				}'  >> idxcol_$1
+				echo '----------------------------------' >> idxcol_$1
+			else
+				echo $1' Not Exists' >> idxcol_$1
+			fi
+			rm $TOOL/tmp/idxcol.tmp
+		done
+		cat idxcol_$1
+
+	else
+
+dbaccess $dbname <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/idxcol.tmp delimiter ' '
+select i.idxname,
+       decode ( i.part1,0,0,1) +	
+       decode ( i.part2,0,0,1) +
+       decode ( i.part3,0,0,1) +
+       decode ( i.part4,0,0,1) +
+       decode ( i.part5,0,0,1) +
+       decode ( i.part6,0,0,1) +
+       decode ( i.part7,0,0,1) +
+       decode ( i.part8,0,0,1) +
+       decode ( i.part9,0,0,1) +
+       decode (i.part10,0,0,1) +
+       decode (i.part11,0,0,1) +
+       decode (i.part12,0,0,1) +
+       decode (i.part13,0,0,1) +
+       decode (i.part14,0,0,1) +
+       decode (i.part15,0,0,1) +
+       decode (i.part16,0,0,1) idxcols
+  from sysindexes i, systables t
+ where i.tabid = t.tabid
+   and t.tabid > 99
+   and t.tabname='$1'
+   and t.tabtype='T';
+!
+
+		if [ `cat $TOOL/tmp/idxcol.tmp | wc -l` -gt 0 ]
+		then 
+			echo '[  '$1'  ]'
+			cat $TOOL/tmp/idxcol.tmp | nawk -F ' ' '{
+			{ printf ("%20s  %2d\n", $1, $2); }
+			}' 
+			echo '----------------------------------'
+		else
+			echo $1' Not Exists'
+		fi
+		rm $TOOL/tmp/idxcol.tmp
+
+	fi
+
+fi

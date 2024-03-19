@@ -1,1 +1,1 @@
-git commit -m "close #51 grpidx : 특정 SQL파일의 Index 생성 정보를 읽어, Index를 Disable 혹은 Enable하는 Script를 생성하는 Shell"
+git commit -m "close #52 idxcol : 테이블의 인덱스 목록과 각 인덱스의 column 갯수 구하기"
