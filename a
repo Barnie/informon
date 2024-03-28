@@ -1,1 +1,1 @@
-git commit -m "close #52 idxcol : 테이블의 인덱스 목록과 각 인덱스의 column 갯수 구하기"
+git commit -m "close #53 index : Table의 Index 정보를 보여주는 Script"

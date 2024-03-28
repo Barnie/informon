@@ -1,0 +1,601 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   index  : Table의 Index 정보를 보여주는 Shell입니다
+#
+#   사용법 : index (tables_ 뒤의 파일명 혹은 Table명) [dbname]
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then
+
+echo '사용법 : index (tables_ 뒤의 파일명 혹은 Table명) [dbname]'
+
+else 
+
+if [ -f tables_$1 ]
+then
+
+if [ -f index_$1 ]; then rm index_$1
+fi
+
+echo '----------------------------------------------------------------------' >> index_$1
+echo '[43;36mnIdx  IdxSize  RowSize  nCols  TableName                          Date[0m' >> index_$1
+echo '----------------------------------------------------------------------' >> index_$1
+
+for i in `cat tables_$1`
+do
+echo $i' 테이블 조사'
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null  
+set isolation to dirty read;
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part1 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part2 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part3 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part4 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part5 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part6 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part7 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part8 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part9 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part10 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part11 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part12 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part13 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part14 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part15 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$i' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part16 = c.colno
+into temp index_temp;
+unload to $TempFile1 delimiter ' '
+select tabname, nindexes, rowsize, ncols, 
+       nvl(( select  sum(collength)::integer from index_temp ),0), created
+  from systables
+ where tabname='$i' and tabid > 99 and tabtype='T';
+drop table index_temp;
+!
+
+if [ `cat $TempFile1 | wc -l` -gt 0 ]
+then
+cat $TempFile1 | $CAWK -F ' ' '{
+{ printf ("%4d %8d %8d %6d  %-30s %-10s\n", $2, $5, $3, $4, $1, $6); }
+}' >> index_$1
+else
+printf "%4d %8d %8d %6d  %-30s [5mNot Exists[0m\n" 0 0 0 0 $i >> index_$1
+fi
+rm $TempFile1
+
+done
+
+echo '----------------------------------------------------------------------' >> index_$1
+cat index_$1
+
+else
+
+echo
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null 
+set isolation to dirty read;
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part1 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part2 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part3 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part4 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part5 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part6 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part7 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part8 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part9 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part10 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part11 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part12 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part13 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part14 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part15 = c.colno
+union all
+select {+ORDERED}
+       t.tabname, CASE
+       WHEN MOD(c.coltype,256) in (5,8)
+       THEN CASE
+            WHEN MOD(MOD(c.collength,256),2) = 1
+            THEN ((( c.collength / 256 )::integer + 4) / 2)::integer
+            ELSE ((( c.collength / 256 )::integer + 3) / 2)::integer
+            END
+       ELSE c.collength
+       END collength
+  from systables t, sysindexes i, syscolumns c
+ where t.tabname='$1' 
+   and t.tabid = i.tabid and t.tabid = c.tabid
+   and i.part16 = c.colno
+into temp index_temp;
+unload to $TempFile1 delimiter ' '
+select tabname, nindexes, rowsize, ncols, 
+       nvl(( select  sum(collength)::integer from index_temp ),0), created
+  from systables
+ where tabname='$1' and tabid > 99 and tabtype='T';
+drop table index_temp;
+!
+
+if [ `cat $TempFile1 | wc -l` -gt 0 ]
+then 
+cat $TempFile1 | $CAWK -F ' ' '{
+{ printf ("%2d %4d %5d %3d %-30s %-10s\n", $2, $5, $3, $4, $1, $6); }
+}' 
+else
+echo ' 0    0     0   0 '$1' Not Exists'
+fi
+rm $TempFile1
+
+fi
+
+fi
