@@ -1,1 +1,1 @@
-git commit -m "close #53 index : Table의 Index 정보를 보여주는 Script"
+git commit -m "close #54 lasttab : 최근에 생성된 Table을 찾는 Shell"

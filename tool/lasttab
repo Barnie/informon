@@ -1,0 +1,85 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   lasttab : 최근에 생성된 Table을 찾는 Shell입니다
+#
+#
+#   사용법 : lasttab [몇일 전 까지 조회인지 입력] [DB명]
+#            조회 기간을 입력하지 않을 경우 7일로 한다
+#            DB명을 입력하지 않을 경우 dbname으로 한다
+#
+#   테이블 네이밍 규칙 : 테이블명Prefix_YYYYMM
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+
+if [ ! "$1" ]
+then export term=7
+else export term=$1
+fi
+
+dbaccess $dbname <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TempFile1 delimiter ' '
+select {+ORDERED}
+       distinct tabname, created, owner, fextsize, nextsize, dbinfo( "DBSPACE", p.pe_partnum )
+  from systables t, sysmaster:sysptnext p
+ where tabid > 99
+   and tabtype='T'
+   and created >= today - $term
+   and p.pe_partnum = t.partnum
+ order by created desc, tabname;
+!
+
+echo
+echo '----------------------------------------------------------------------------------------'
+echo '[5m                    Table Name     Created       Owner  FExtSize  NExtSize  Dbspace Name[0m'
+echo '----------------------------------------------------------------------------------------'
+cat $TempFile1 | $CAWK -F ' ' '{
+{
+	printf("%30s    %8s  %10s   %7d   %7d  %12s\n", $1, $2, $3, $4, $5, $6);
+}
+}'
+echo '----------------------------------------------------------------------------------------'
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
