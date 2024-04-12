@@ -1,1 +1,1 @@
-git commit -m "close #54 lasttab : 최근에 생성된 Table을 찾는 Shell"
+git commit -m "close #55 load : ASCii Data를 dbload를 이용하여 Load하는 Shell"
