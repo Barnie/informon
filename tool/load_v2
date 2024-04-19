@@ -1,0 +1,138 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   load_v2 : ASCii Data를 dbload를 이용하여 Load하는 Shell입니다
+#   버전 : v2
+#
+#   사용법 : load_v2 (.unl을 제외한 Data File명 혹은 File List명) [DB명] [Delimiter] [table명]
+#   요파일 : index
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+
+################### Default #############################################
+
+
+# 임시파일 초기화 (표준과 다름) #########################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`_${TempTail}_$$.cmd
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`_${TempTail}_$$.tmp
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+#########################################################################
+
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : load_v2 (.unl을 제외한 Data File명 혹은 File List명) [DB명] [Delimiter] [table명]'
+
+else
+
+	date
+	retry=10
+	sleeptime=5
+
+	if [ ! "$3" ]
+	then export deli='|'
+	else export deli=$3
+	fi
+
+	if [ -f $1 ]
+	then
+
+		for i in `cat $1`
+		do
+
+			if [ ! "$4" ]
+			then export tabname=$i
+			else export tabname=$4
+			fi
+
+			echo $tabname' 테이블이 load 됩니다.'
+
+			export cols=`index $tabname $dbname | tail -1 | $CAWK -F ' ' '{
+				{ print $4 }
+}'`
+			echo 'file '$i'.unl delimiter "'$deli'" '$cols';' > $TempFile1
+			echo '     insert into '$tabname';' >> $TempFile1
+			timex dbload -d $dbname -c $TempFile1 -l $i.log -e 40000000 -n 10000
+			if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+		done
+
+	else
+
+		if [ `echo $1 | $CAWK -F ' ' '{ start=match($1,/[0-9]/); print start }'` -eq 1 ]
+		then
+			echo 'Load할 파일명은 숫자로 시작하면 안됩니다. 문자로 바꾸고 다시 시도하세요 ^^'
+			exit
+		fi
+
+		if [ ! "$4" ]
+		then export tabname=$1
+		else export tabname=$4
+		fi
+
+		echo $tabname' 테이블이 load 됩니다.'
+
+		export cols=`index $tabname $dbname | tail -1 | $CAWK -F ' ' '{
+			{ print $4 }
+}'`
+		echo 'file '$1'.unl delimiter "'$deli'" '$cols';' > $TempFile1
+		echo '     insert into '$tabname';' >> $TempFile1
+
+		while (( $retry > 0 ))
+		do
+			timex dbload -d $dbname -c $TempFile1 -l $1.log -e 40000000 -n 10000 1> $TempFile2
+			cat $TempFile2
+			if [ `grep 'row(s) loaded' $TempFile2 | wc -l` -gt 0 ]
+			then
+				retry=0	
+			else
+				retry=`expr $retry - 1`
+				sleep $sleeptime
+			fi
+			echo 'RETRY: '$retry
+		done
+		if [ -f $TempFile1 ]; then rm $TempFile1; fi
+		if [ -f $TempFile2 ]; then rm $TempFile2; fi
+
+	fi
+
+	date
+
+fi
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi

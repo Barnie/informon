@@ -1,1 +1,1 @@
-git commit -m "close #55 load : ASCii Data를 dbload를 이용하여 Load하는 Shell"
+git commit -m "close #56 load_v2 : ASCii Data를 dbload를 이용하여 Load하는 Shell"
