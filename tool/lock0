@@ -1,0 +1,90 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   lock0 : onstat -k의 결과로 Owner가 0인 Lock이 걸린 Object를 보여주는 Shell입니다
+#
+#   사용법 : lock0
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+if [ -f $TOOL/tmp/lock.table ]; then rm $TOOL/tmp/lock.table
+fi
+if [ -f $TOOL/tmp/lock0.table ]; then rm $TOOL/tmp/lock0.table
+fi
+if [ -f $TOOL/tmp/lock.unl ]; then rm $TOOL/tmp/lock.unl
+fi
+if [ -f $TOOL/tmp/lock.out ]; then rm $TOOL/tmp/lock.out
+fi
+
+onstat -k | egrep -v active | egrep -v Locks | egrep -v address | egrep -v Informix > $TOOL/tmp/lock.table
+
+echo '1,$g/^$/d\nw\nq' | ed $TOOL/tmp/lock.table > /dev/null
+
+cat $TOOL/tmp/lock.table | $CAWK -F ' ' '{
+{ if ( $3 == 0 ) print $6; }
+}' > $TOOL/tmp/lock0.table
+
+export cnt=`wc -l $TOOL/tmp/lock0.table | $CAWK -F ' ' '{
+                                          { print $1 }
+                                          }'`
+
+if [ $cnt -gt 0 ]; then
+
+for i in `cat $TOOL/tmp/lock0.table`
+do
+
+echo '> Checking : '$i
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/lock.unl delimiter ' '
+select dbsname, tabname from systabnames
+ where hex(partnum) = CASE
+                      WHEN LENGTH('$i') = 6 THEN '0x00' || upper('$i')
+                      WHEN LENGTH('$i') = 7 THEN '0x0'  || upper('$i')
+                      WHEN LENGTH('$i') = 8 THEN '0x'   || upper('$i')
+                      END;
+!
+cat $TOOL/tmp/lock.unl | $CAWK -F ' ' '{
+{ printf("%-20s %-40s\n", $1, $2);}
+}' >> $TOOL/tmp/lock.out
+
+done
+
+echo '----------------------------------------'
+echo 'Owner가 0인 Lock이 걸린 Object들 입니다.'
+echo "--------------------------------------------------------------------"
+echo "[5mDatabase Name[0m        [5mObject Name[0m"
+echo "--------------------------------------------------------------------"
+cat $TOOL/tmp/lock.out
+echo "--------------------------------------------------------------------"
+
+rm $TOOL/tmp/lock.unl
+rm $TOOL/tmp/lock.out
+
+else
+
+echo '------------------------------------------'
+echo 'Owner가 0인 Lock이 걸린 Object가 없습니다.'
+echo '------------------------------------------'
+
+fi
+
+rm $TOOL/tmp/lock.table
+rm $TOOL/tmp/lock0.table
