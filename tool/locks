@@ -1,0 +1,80 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   locks : sysmaster DB의 syslocks를 조회하여
+#           Shared가 아닌 Lock이 걸린 Object들을 보여주는 Shell입니다
+#
+#   사용법 : locks [number of lines = 20]
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+echo
+echo 'DB Hang 유발이 발견되었습니다. 왠만하면 다른 방법을 사용해 보시죠'
+echo '그래도 사용하시겠습니까? \c'
+read yn
+if [ $yn != 'y' ]; then exit; fi
+
+if [ ! "$1" ]
+then export num=20
+else export num=$1
+fi
+
+if [ -f $TOOL/tmp/lock0.unl ]; then rm $TOOL/tmp/lock0.unl
+fi
+if [ -f $TOOL/tmp/lock0.out ]; then rm $TOOL/tmp/lock0.out
+fi
+
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/lock0.unl delimiter ' '
+select first $num dbsname, tabname, MAX(type), sum(1) cnt from syslocks
+ where type != 'S'
+ group by dbsname, tabname;
+!
+
+if [ `cat $TOOL/tmp/lock0.unl | wc -l` -gt 0 ]
+then
+
+cat $TOOL/tmp/lock0.unl | $CAWK -F ' ' '{
+{ printf("%-20s %-30s %9s %7d\n", $1, $2, $3, $4);}
+}' >> $TOOL/tmp/lock0.out
+
+echo '------------------------------------------'
+echo 'Shared가 아닌 Lock이 걸린 Object들 입니다.'
+echo "---------------------------------------------------------------------"
+echo "[5mDatabase Name        Object Name                         Type   Count[0m"
+echo "---------------------------------------------------------------------"
+cat $TOOL/tmp/lock0.out
+echo "---------------------------------------------------------------------"
+if [ `cat $TOOL/tmp/lock0.unl | wc -l` -eq $num ]
+then echo "더 많은 Lock이 존재하므로 검색 라인 수를 늘리세요"
+fi
+
+rm $TOOL/tmp/lock0.out
+
+else
+
+echo '--------------------------------------------'
+echo 'Shared가 아닌 Lock이 걸린 Object가 없습니다.'
+echo '--------------------------------------------'
+
+fi
+
+rm $TOOL/tmp/lock0.unl
