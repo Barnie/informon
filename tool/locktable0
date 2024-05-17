@@ -1,0 +1,63 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   locktable0
+#   : onstat -k를 조회하여, Lock이 걸린 Object들을 보여주는 Shell입니다
+#
+#   사용법 : locktable0 (onstat -k file name )
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+if [ -f locktables.out ]; then rm locktables.out
+fi
+if [ -f $TOOL/tmp/locktable0.tmp ]; then rm $TOOL/tmp/locktable0.tmp
+fi
+
+if [ ! "$1" ]
+then
+
+echo '사용법 : locktable0 ( onstat -k file name )'
+
+else
+
+echo "--------------------------------------------------------------------"
+
+for i in `cat $1 | grep -v Informix | grep -v Locks | grep -v active | grep -v address |                   nawk -F ' ' '{
+                   { if ( $3 == 0 ) print $6; }
+                   }'`
+do
+echo 'Checking : '$i
+dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/locktable0.tmp delimiter ' '
+select dbsname, tabname from systabnames
+ where hex(partnum) = CASE
+                      WHEN LENGTH('$i') = 6 THEN '0x00' || upper('$i')
+                      WHEN LENGTH('$i') = 7 THEN '0x0'  || upper('$i')
+                      WHEN LENGTH('$i') = 8 THEN '0x'   || upper('$i')
+                      END;
+!
+cat $TOOL/tmp/locktable0.tmp | nawk -F ' ' '{
+{ printf("%-20s %-40s\n", $1, $2);}
+}' >> locktables.out
+done
+
+echo "--------------------------------------------------------------------"
+echo "[5mDatabase Name[0m        [5mObject Name[0m"
+echo "--------------------------------------------------------------------"
+if [ -f locktables.out ]
+then
+cat locktables.out
+else
+echo 'Lock 걸린 Object가 없습니다.'
+fi
+echo "--------------------------------------------------------------------"
+
+fi

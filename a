@@ -1,1 +1,1 @@
-git commit -m "close #58 locks : sysmaster DB의 syslocks를 조회하여 Shared가 아닌 Lock이 걸린 Object들을 보여주는 Shell"
+git commit -m "close #59 locktable0 : onstat -k를 조회하여, Lock이 걸린 Object들을 보여주는 Shell"
