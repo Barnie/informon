@@ -1,1 +1,1 @@
-git commit -m "close #59 locktable0 : onstat -k를 조회하여, Lock이 걸린 Object들을 보여주는 Shell"
+git commit -m "close #60 locktable2 : onstat -k의 결과로 Lock 걸린 Object를 보여주는 Shell"
