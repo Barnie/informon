@@ -1,0 +1,91 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   locktable3 : 특정 Table에 Lock을 건 Session 정보를 보여줍니다
+#
+#   사용법 : locktable3 (Table명) [DB명]
+#   요파일 : chkpid, chksid
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+echo '[0m\c'
+################### Default #############################################
+
+echo
+echo 'DB Hang 유발이 발견되었습니다. 왠만하면 다른 방법을 사용해 보시죠'
+echo '그래도 사용하시겠습니까? \c'
+read yn
+if [ $yn != 'y' ]; then exit; fi
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : locktable3 table명 (DB명)'
+
+else
+
+	dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+		set isolation to dirty read;
+		unload to $TempFile1 delimiter ' '
+		select {+ORDERED}
+		       r.sid, max(r.username) username, count(*) locks
+		  from ${DBNAME}:systables t, syslcktab l, systxptab x, sysrstcb r
+		 where t.tabname = '$1'
+		   and t.partnum = l.partnum
+		   and l.owner = x.address
+		   and x.owner = r.address
+		 group by 1;
+!
+
+	echo '--------------------------------------------------------------------------'
+	echo '[32;43mSession ID  User Name            nLocks      PID Process Name  TTY        [0m'
+	echo '--------------------------------------------------------------------------'
+
+	cat $TempFile1 | nawk -F ' ' '{
+	{
+		printf("%10d  %-18s  %7d  ", $1, $2, $3);
+		system("chkpid $(chksid "$1")");
+} }'
+
+	echo '--------------------------------------------------------------------------'
+
+	if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+fi
