@@ -1,1 +1,1 @@
-git commit -m "close #61 locktable3 : 특정 Table에 Lock을 건 Session 정보 보기"
+git commit -m "close #62 locktable4 : 특정 Table에 Lock을 건 Session 정보 조회"

@@ -1,0 +1,119 @@
+#!/bin/ksh
+
+#########################################################################
+#
+#   locktable4 : 특정 Table에 Lock을 건 Session 정보를 보여줍니다
+#
+#
+#   사용법 : locktable4 (Table명) [DB명]
+#   요파일 : chklck, chkpid, chksid
+#
+#########################################################################
+
+# Tool 폴더 설정 ########################################################
+if [ ! "$TOOL" ]
+then export TOOL=$HOME/tool
+fi
+#########################################################################
+
+
+# OS별 awk 설정 #########################################################
+if [ `uname` = 'HP-UX' ]
+then
+   export CAWK=awk
+else
+   export CAWK=nawk
+fi
+#########################################################################
+
+
+# DB명 설정 #############################################################
+if [ ! "$2" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$2
+fi
+#########################################################################
+
+
+# 임시파일 초기화 #######################################################
+export TempTail=`tty | $CAWK -F/ '{print $4}'`
+export TempFile1=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp_${TempTail}_$$
+export TempFile2=$TOOL/tmp/`echo $0 | $CAWK -F '/' '{ print $NF }'`.tmp2_${TempTail}_$$
+
+if [ -f $TempFile1 ]; then rm $TempFile1; fi
+if [ -f $TempFile2 ]; then rm $TempFile2; fi
+#########################################################################
+
+printf '[0m'
+################### Default #############################################
+
+echo 
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : locktable4 table명 (DB명)'
+
+else
+
+	export lckcnt=`chklck | grep '^Total' | $CAWK -F ' ' '{ print $2 }'`
+
+	echo 'Lock 갯수는 '$lckcnt'개 입니다. 그래도 수행하시겠습니까? '
+
+	echo
+	read yn
+	if [ $yn != 'y' ]; then exit; fi
+
+	dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+		set isolation to dirty read;
+		unload to $TempFile1 delimiter ' '
+		select lower(hex(partnum)) from systabnames where dbsname='$dbname' and tabname='$1';
+!
+
+	if [`cat $TempFile1 | wc -l` -eq 0 ]
+	then
+		echo '그런 테이블이 존재하지 않습니다. DB명과 Table명을 다시 한번 확인하세요.'
+		exit
+	fi
+
+	export partnum=`cat $TempFile1 | $CAWK '{
+   for (i=1; i<=length($1); i++) {
+      if (substr($1, i, 1) != "0" && substr($1, i, 1) != "x") break;
+   }
+   print substr($1, i, length($1)-i+1);
+}'`
+
+	echo $dbname':'$1'의 PartNum = '$partnum
+
+	if [ -f $TempFile1 ]; then rm $TempFile1; fi	
+
+	onstat -k | grep `echo $partnum` | $CAWK -F ' ' '{ print $3 }'> $TempFile1
+
+	echo '---------------------------------------------------------------'
+	echo '[32;43mSession ID   PID  Process Name  TTY                            [0m'
+	echo '---------------------------------------------------------------'
+
+	for i in `sort $TempFile1 | uniq`
+	do
+		dbaccess sysmaster<<! 1> /dev/null 2> /dev/null
+			set isolation to dirty read;
+			unload to $TempFile2 delimiter ' '
+			select sid from sysrstcb where address='0x$i'::int8;
+!
+
+		cat $TempFile2 | $CAWK -F ' ' '{
+			printf("%10d  ", $1);
+			system("chkpid $(chksid "$1")");
+}'
+		if [ -f $TempFile2 ]; then rm $TempFile2; fi	
+	done
+
+	echo '---------------------------------------------------------------'
+
+	if [ -f $TempFile1 ]; then rm $TempFile1; fi
+
+fi
