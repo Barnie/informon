@@ -1,1 +1,1 @@
-git commit -m "close #62 locktable4 : 특정 Table에 Lock을 건 Session 정보 조회"
+git commit -m "close #63 monses : Running 중인 Session의 지속시간을 Check하는 Shell"

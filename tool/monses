@@ -1,0 +1,82 @@
+#!/bin/ksh
+
+####################################################################
+# 
+#   monses : Running 중인 Session의 지속시간을 Check하는 Shell입니다
+#
+#   사용법 : monses [지정시간(초) 이상 지속되는 Session만 표시]
+#            지정시간(초)을 입력하지 않을 경우 0초로 한다
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ ! "$1" ]
+then export min=0
+else export min=$1
+fi
+
+if [ -f $TOOL/tmp/monses.tmp ]; then rm $TOOL/tmp/monses.tmp; fi
+if [ -f $TOOL/tmp/monses2.tmp ]; then rm $TOOL/tmp/monses2.tmp; fi
+if [ -f $TOOL/tmp/monses3.tmp ]; then rm $TOOL/tmp/monses3.tmp; fi
+
+onstat -u | egrep -v P--D | egrep -v P--F | egrep -v P--B | egrep -v Y--P | egrep -v '\-\-\-P---' | egrep -v active | egrep -v Userthreads | egrep -v Server | egrep -v sessid | nawk -F ' ' '{
+{ print $3; }
+}' > $TOOL/tmp/monses2.tmp
+
+/usr/bin/echo '1,$g/^$/d\nw\nq' | ed $TOOL/tmp/monses2.tmp > /dev/null
+/usr/bin/echo '1,$s/$/ 0 '`date +%Y%m%d-%H:%M:%S`'/g\nw\nq' | ed $TOOL/tmp/monses2.tmp > /dev/null
+
+while true
+do
+
+	touch $TOOL/tmp/monses2.tmp
+	touch $TOOL/tmp/monses3.tmp
+
+	onstat -u | egrep -v P--D | egrep -v P--F | egrep -v P--B | egrep -v Y--P | egrep -v '\-\-\-P---' | egrep -v active | egrep -v Userthreads | egrep -v Server | egrep -v sessid | nawk -F ' ' '{
+	{ print $3; }
+	}' > $TOOL/tmp/monses.tmp
+
+	/usr/bin/echo '1,$g/^$/d\nw\nq' | ed $TOOL/tmp/monses.tmp > /dev/null
+
+	for i in `cat $TOOL/tmp/monses.tmp`
+	do
+
+		if [ `grep ^$i $TOOL/tmp/monses2.tmp | wc -l` -eq 0 ] 
+		then
+
+		  if [ `grep ^$i $TOOL/tmp/monses3.tmp | wc -l` -eq 0 ]; then
+		    echo $i' 0 '`date +%Y%m%d-%H:%M:%S` >> $TOOL/tmp/monses3.tmp
+		  fi
+
+		else
+
+ 	 		if [ `grep ^$i $TOOL/tmp/monses3.tmp | wc -l` -eq 0 ]; then
+	    		grep ^$i $TOOL/tmp/monses2.tmp | head -1 | nawk -F ' ' '{
+			   { printf("%d %d %s\n", $1, $2+1, $3); }
+    			}' >> $TOOL/tmp/monses3.tmp
+  			fi
+
+		fi
+	done
+
+	clear
+	echo '-----------------------------------------'
+	echo '[5mSession ID    Duration  Start Time       [0m'
+	echo '-----------------------------------------'
+	cat $TOOL/tmp/monses3.tmp | nawk -F ' ' '{
+	{ if ( $2 >= '$min' ) printf("%10d  %10d  %s\n", $1, $2, $3); }
+	}'
+	echo '-----------------------------------------'
+	print ' Active Session Count          '`cat $TOOL/tmp/monses3.tmp | wc -l` 
+	echo ' Current Time           '`date +%Y%m%d-%H:%M:%S` 
+	echo '-----------------------------------------'
+	echo '이 Shell도 System에 일정부분 부하를 주니'
+	echo '꼭 필요한 경우에만 사용하세요'
+	cp $TOOL/tmp/monses3.tmp $TOOL/tmp/monses2.tmp
+
+	if [ -f $TOOL/tmp/monses3.tmp ]; then rm $TOOL/tmp/monses3.tmp; fi
+
+	sleep 1
+
+done
