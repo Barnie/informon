@@ -1,1 +1,1 @@
-git commit -m "close #63 monses : Running 중인 Session의 지속시간을 Check하는 Shell"
+git commit -m "close #64 notdba : Informix User가 생성하지 않은 Table을 보여주는 Shell"

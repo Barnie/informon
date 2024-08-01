@@ -1,0 +1,54 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   notdba : Informix User가 생성하지 않은 Table을 보여주는 Shell
+#
+#   사용법 : notdba
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ -f $TOOL/tmp/notdba.tmp ]; then rm $TOOL/tmp/notdba.tmp; fi
+if [ -f $TOOL/tmp/notdba.tmp2 ]; then rm $TOOL/tmp/notdba.tmp2; fi
+
+dbaccess ksnet <<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/notdba.tmp delimiter ' '
+select {+ORDERED}
+       unique t.tabname, t.owner, t.created, dbinfo( "DBSPACE", p.pe_partnum )
+  from systables t, sysmaster:sysptnext p
+ where t.tabid > 99
+   and t.tabtype='T'
+   and t.owner != 'informix'
+   and p.pe_partnum = t.partnum
+  order by 1;
+!
+
+echo > $TOOL/tmp/notdba.tmp2
+echo '---------------------------------------------------------------------------------' >> $TOOL/tmp/notdba.tmp2
+echo '[31;43m                    Table Name       Owner   Created          DBspace       Nrows[0m' >> $TOOL/tmp/notdba.tmp2
+echo '---------------------------------------------------------------------------------' >> $TOOL/tmp/notdba.tmp2
+cat $TOOL/tmp/notdba.tmp | nawk -F ' ' '{
+{
+	printf("%30s  %10s  %7s  %15s  ", $1, $2, $3, $4);
+   system("count2 "$1"");
+}
+}' >> $TOOL/tmp/notdba.tmp2
+echo '---------------------------------------------------------------------------------' >> $TOOL/tmp/notdba.tmp2
+
+cat $TOOL/tmp/notdba.tmp2
+echo
+echo '파일을 남길까요? \c'
+read yn
+
+if [ $yn = 'y' ]
+then
+	cp $TOOL/tmp/notdba.tmp2 tables_notdba
+else
+   echo '(^0^)/ 화이링 ☆'
+fi
+
+if [ -f $TOOL/tmp/notdba.tmp ]; then rm $TOOL/tmp/notdba.tmp; fi
+if [ -f $TOOL/tmp/notdba.tmp2 ]; then rm $TOOL/tmp/notdba.tmp2; fi
