@@ -1,1 +1,1 @@
-git commit -m "close #64 notdba : Informix User가 생성하지 않은 Table을 보여주는 Shell"
+git commit -m "close #65 ounload : Onunload를 수행하는 Shell"

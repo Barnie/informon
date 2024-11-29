@@ -1,0 +1,45 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   ounload : Onunload를 수행하는 Shell입니다
+#
+#   사용법 : ounload Table명 [DB명]
+#
+####################################################################
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : ounload.sh Table명 (DB명)'
+
+else
+
+	if [ ! "$2" ]
+	then export dbname='dbname'
+	else export dbname=$2
+	fi
+
+#if [ -f $1 ]
+#then
+
+#	for i in `cat $1`
+#	do
+#		echo $i' 테이블이 Unload 됩니다.'
+#	done
+#
+#	else
+
+	if [ -f "$1.bin" ]
+	then
+		echo $1'.bin이 이미 존재합니다'
+	else
+		echo $1' 테이블이 Onunload 됩니다.'
+		touch $1.bin
+		chmod 660 $1.bin
+		onunload -t ./$1.bin -s 20480000 -b 32 $dbname:$1
+	fi
+
+#	fi
+
+fi
