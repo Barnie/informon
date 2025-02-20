@@ -1,1 +1,1 @@
-git commit -m "close #65 ounload : Onunload를 수행하는 Shell"
+git commit -m "close #67 outtab : 보관기간이 초과된 일/월테이블을 조회하는 Shell"

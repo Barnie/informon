@@ -1,0 +1,61 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   outtab : 보관기간이 초과된 일/월테이블을 조회하는 Shell입니다
+#
+#   사용법 : outtab [DB명]
+#   필요파일 : tables (일/월테이블의 prefix 목록이 들어있는 파일)
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+# DB명 설정 #############################################################
+if [ ! "$1" ]
+then
+	if [ ! "$DBNAME" ]
+	then export dbname="dbname"
+	else export dbname=$DBNAME
+	fi
+else export dbname=$1
+fi
+#########################################################################
+
+if [ $INFORMIXSERVER = 'prod_tcp' ] || [ $INFORMIXSERVER = 'dev_tcp' ]
+then export ymd='%Y%m%d'; export ym='%Y%m'
+else export ymd='%y%m%d'; export ym='%y%m'
+fi
+
+if [ -f $TOOL/tmp/outtab.tmp ]; then rm $TOOL/tmp/outtab.tmp; fi
+
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/outtab.tmp delimiter ' '
+select first 1 to_char(today,"$ymd") from dual;
+!
+
+export today=`cat $TOOL/tmp/outtab.tmp`
+if [ -f $TOOL/tmp/outtab.tmp ]; then rm $TOOL/tmp/outtab.tmp; fi
+
+for i in `cat tables`
+do
+
+echo $i > $TOOL/tmp/outtab.tmp2
+echo '1,$s/yyyymmdd//g\nw\nq' | ed $TOOL/tmp/outtab.tmp2 > /dev/null
+export tabname=`cat $TOOL/tmp/outtab.tmp2`
+
+dbaccess $dbname<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/outtab.tmp delimiter ' '
+select tabname from systables
+ where tabname like '$tabname%'
+   and length(tabname) = 13
+   and tabname != '${tabname}yyyymmdd'
+   and tabname < '${tabname}$today';
+!
+
+cat $TOOL/tmp/outtab.tmp
+if [ -f $TOOL/tmp/outtab.tmp ]; then rm $TOOL/tmp/outtab.tmp; fi
+
+done
