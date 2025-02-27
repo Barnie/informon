@@ -1,0 +1,54 @@
+#!/bin/ksh
+
+####################################################################
+#
+#   prolst : 지정된 DB에 생성된 Procedure 목록을 보는 Shell입니다
+#   사용법 : prolst DB명
+#
+####################################################################
+
+export TOOL=$HOME/tool
+
+if [ ! "$1" ]
+then
+
+	echo '사용법 : prolst DB명'
+
+else
+
+echo "---------------------------------------------------------"
+echo "Stored Procedure Name                               Owner"
+echo "---------------------------------------------------------"
+
+	if [ -f $TOOL/tmp/prolst.tmp ]; then rm $TOOL/tmp/prolst.tmp; fi
+
+dbaccess $1<<! 1> /dev/null 2> /dev/null
+set isolation to dirty read;
+unload to $TOOL/tmp/prolst.tmp delimiter ' '
+select procname, owner from sysprocedures
+ where mode in ('O', 'R')
+ order by 1;
+!
+# where mode = 'O'
+# mode type :
+#	D or d = DBA
+#	O or o = owner
+#	P or p = Protected
+#	R or r = Restricted
+#	T or t = Trigger
+
+
+	cat $TOOL/tmp/prolst.tmp | nawk -F ' ' '{
+{
+      printf("%-40s %16s\n", $1, $2);
+} }'
+
+	echo "---------------------------------------------------------"
+	cat $TOOL/tmp/prolst.tmp | wc -l | nawk -F ' ' '{
+{ printf("사용자가 만든 Stored Procedure는 총 %d개\n", $1); }
+}'
+	echo "---------------------------------------------------------"
+
+	if [ -f $TOOL/tmp/prolst.tmp ]; then rm $TOOL/tmp/prolst.tmp; fi
+
+fi

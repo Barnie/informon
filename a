@@ -1,1 +1,1 @@
-git commit -m "close #67 outtab : 보관기간이 초과된 일/월테이블을 조회하는 Shell"
+git commit -m "close #68 prolst : 지정된 DB에 생성된 Procedure 목록을 보는 Shell"
