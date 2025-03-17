@@ -1,1 +1,1 @@
-git commit -m "close #68 prolst : 지정된 DB에 생성된 Procedure 목록을 보는 Shell"
+git commit -m "close #69 prtses : 입력된 Session 관련 정보를 한줄로 보기"
