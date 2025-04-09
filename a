@@ -1,1 +1,1 @@
-git commit -m "close #70 prtses2 : 입력된 Session 관련 정보를 한줄로 보여줍니다"
+git commit -m "close #71 relog.sh : onbar 프로세스 재시작"
