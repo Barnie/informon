@@ -1,1 +1,1 @@
-git commit -m "close #71 relog.sh : onbar 프로세스 재시작"
+git commit -m "close #72 rolaut.sh : Role이 부여된 사용자를 Check"
