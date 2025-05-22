@@ -1,1 +1,1 @@
-git commit -m "close #75 tabcnt.sh : 지정한 DB의 Table들의 Row Count를 Check 하는 Script"
+git commit -m "close #77 tablst : 지정된 DB에 생성된 Table 목록을 보는 Script"
