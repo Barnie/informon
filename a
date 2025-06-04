@@ -1,1 +1,1 @@
-git commit -m "close #77 tablst : 지정된 DB에 생성된 Table 목록을 보는 Script"
+git commit -m "close #80 tablst2 : 특정 글자로 시작하는 테이블명을 보여주는 Script"
