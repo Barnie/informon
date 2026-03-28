@@ -1,0 +1,2 @@
+# AI 학습 거부 선언
+No-AI-Training: true
