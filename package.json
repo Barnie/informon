@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ibm_db": "^3.2.4",
+    "ibm_db": "^4.1.0",
     "lodash": "^4.17.21",
     "printf": "^0.6.1",
     "redis": "^3.0.2"
